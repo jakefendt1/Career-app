@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comp Structure Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #151820;
+    --surface2: #1c2030;
+    --border: #252b3b;
+    --border2: #323950;
+    --accent: #4f8eff;
+    --accent2: #00e5a0;
+    --warn: #ff6b35;
+    --text: #e8eaf0;
+    --muted: #5a6180;
+    --label: #8892b0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(79,142,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,142,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .container {
+    position: relative; z-index: 1;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  header { margin-bottom: 36px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+
+  h1 {
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  h1 span { color: var(--accent2); }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .layout { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+
+  .card.full { grid-column: 1 / -1; }
+
+  .card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+  }
+
+  .card-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .input-group { margin-bottom: 18px; }
+  .input-group:last-child { margin-bottom: 0; }
+
+  .input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--label);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .lock-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(79,142,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+
+  .lock-badge.calc {
+    color: var(--accent2);
+    background: rgba(0,229,160,0.1);
+  }
+
+  .lock-badge.free {
+    color: var(--muted);
+    background: var(--surface2);
+  }
+
+  .input-wrap { position: relative; }
+
+  .input-prefix {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    pointer-events: none;
+    font-weight: 500;
+  }
+
+  input[type="number"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    padding: 11px 12px 11px 28px;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+
+  input[type="number"]:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  select {
+    padding-left: 12px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%235a6180' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 30px;
+  }
+
+  input.derived {
+    background: rgba(0,229,160,0.04);
+    border-color: rgba(0,229,160,0.2);
+    color: var(--accent2);
+  }
+
+  .slider-group { margin-bottom: 18px; }
+
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .slider-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent2);
+    font-weight: 500;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .lock-mode {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 10px;
+  }
+
+  .lock-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 8px 4px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .lock-btn:hover { color: var(--text); }
+
+  .lock-btn.active {
+    background: var(--bg);
+    color: var(--accent);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  .lock-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 18px;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+  }
+
+  .big-num {
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--accent2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .big-num.accent { color: var(--accent); }
+  .big-num.warn { color: var(--warn); }
+
+  .big-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .split-display {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .split-half {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .split-half .pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .split-half .pct.base { color: var(--accent); }
+  .split-half .pct.var { color: var(--accent2); }
+
+  .split-half .pct-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .split-bar-wrap { margin-top: 12px; }
+  .split-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+    display: flex;
+  }
+  .split-bar-base { height: 100%; background: var(--accent); transition: width 0.3s; }
+  .split-bar-var  { height: 100%; background: var(--accent2); flex: 1; }
+
+  .q-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .q-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .q-box .q-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .q-box .q-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--accent2);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scenario-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+
+  .scenario-table th {
+    text-align: left;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .scenario-table th:last-child { text-align: right; }
+
+  .scenario-table td {
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scenario-table tr:last-child td { border-bottom: none; }
+  .scenario-table td:last-child { text-align: right; font-weight: 500; }
+
+  .attain-badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bar-cell { width: 130px; padding-right: 12px; }
+
+  .scenario-bar-bg {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .scenario-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+  .highlight-row td { background: rgba(79,142,255,0.06); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .toggle-label { font-size: 13px; color: var(--label); font-weight: 500; }
+
+  .toggle {
+    position: relative;
+    width: 38px; height: 20px;
+    cursor: pointer;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: var(--border2);
+    border-radius: 20px;
+    transition: 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider::before {
+    transform: translateX(18px);
+    background: white;
+  }
+
+  .accel-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card { animation: fadeUp 0.35s ease both; }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.2s; }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">// Job Offer Evaluator</div>
+    <h1>Comp Structure <span>Calculator</span></h1>
+    <div class="subtitle">Lock a value, change anything else, watch it rebalance</div>
+  </header>
+
+  <div class="layout">
+
+    <div class="card">
+      <div class="card-label">Inputs</div>
+
+      <label style="margin-bottom:8px">Lock Mode</label>
+      <div class="lock-mode">
+        <button class="lock-btn active" data-mode="ote">Lock OTE</button>
+        <button class="lock-btn" data-mode="base">Lock Base</button>
+        <button class="lock-btn" data-mode="free">Free</button>
+      </div>
+      <div class="lock-hint" id="lockHint">// OTE stays fixed — change Base or Split, the other rebalances</div>
+
+      <div class="input-group">
+        <div class="input-header">
+          <label>Base Salary</label>
+          <span class="lock-badge" id="baseTag">DRIVER</span>
+        </div>
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input type="number" id="baseSalary" value="140000" min="0" step="1000">
+        </div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-header">
+          <label>Total OTE</label>
+          <span class="lock-badge" id="oteTag">LOCKED</span>
+        </div>
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input type="number" id="totalOTE" value="233316" min="0" step="1000">
+        </div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <label style="margin:0">Split Ratio (Base / Variable)</label>
+          <span class="slider-val" id="splitSliderVal">60 / 40</span>
+        </div>
+        <input type="range" id="splitSlider" min="30" max="90" step="1" value="60">
+      </div>
+
+      <div class="input-group">
+        <label>Quarterly Weighting</label>
+        <select id="qWeight">
+          <option value="equal">Equal (25/25/25/25)</option>
+          <option value="backloaded">Back-Loaded (20/20/25/35)</option>
+          <option value="frontloaded">Front-Loaded (35/25/20/20)</option>
+          <option value="ramp">Ramp (15/20/30/35)</option>
+        </select>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Accelerator above 100%</span>
+        <label class="toggle">
+          <input type="checkbox" id="accelToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="slider-group" id="accelGroup" style="display:none; padding-top:8px">
+        <div class="slider-header">
+          <label style="margin:0">Accelerator Rate</label>
+          <span class="slider-val" id="accelLabel">1.5×</span>
+        </div>
+        <input type="range" id="accelRate" min="1.1" max="3" step="0.1" value="1.5">
+        <div class="accel-note">Multiplier on variable comp earned above 100% attainment</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Summary</div>
+
+      <div style="margin-bottom:22px">
+        <div class="big-num accent" id="dispOTE">$233,316</div>
+        <div class="big-label">Total OTE</div>
+      </div>
+
+      <div style="margin-bottom:22px">
+        <div class="big-num" id="dispVar">$93,316</div>
+        <div class="big-label">Variable @ 100% Attainment</div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div class="big-num warn" id="dispSplit">60 / 40</div>
+        <div class="big-label">Base / Variable Split</div>
+      </div>
+
+      <div class="split-bar-wrap">
+        <div class="split-bar">
+          <div class="split-bar-base" id="splitBarBase" style="width:60%"></div>
+          <div class="split-bar-var"></div>
+        </div>
+      </div>
+
+      <div class="split-display">
+        <div class="split-half">
+          <div class="pct base" id="basePctDisp">60%</div>
+          <div class="pct-label">Base</div>
+        </div>
+        <div class="split-half">
+          <div class="pct var" id="varPctDisp">40%</div>
+          <div class="pct-label">Variable</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card full">
+      <div class="card-label">Quarterly Variable Targets</div>
+      <div class="q-grid">
+        <div class="q-box"><div class="q-label">Q1</div><div class="q-val" id="q1">$23,329</div></div>
+        <div class="q-box"><div class="q-label">Q2</div><div class="q-val" id="q2">$23,329</div></div>
+        <div class="q-box"><div class="q-label">Q3</div><div class="q-val" id="q3">$23,329</div></div>
+        <div class="q-box"><div class="q-label">Q4</div><div class="q-val" id="q4">$23,329</div></div>
+      </div>
+    </div>
+
+    <div class="card full">
+      <div class="card-label">Performance Scenarios</div>
+      <table class="scenario-table">
+        <thead>
+          <tr>
+            <th>Attainment</th>
+            <th>Variable Earned</th>
+            <th class="bar-cell"></th>
+            <th>Total Earnings</th>
+          </tr>
+        </thead>
+        <tbody id="scenarioBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const scenarios = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5];
+
+  const colors = {
+    0.5:  { badge: 'rgba(255,107,53,0.15)', text: '#ff6b35' },
+    0.75: { badge: 'rgba(255,107,53,0.1)',  text: '#ff8c60' },
+    0.9:  { badge: 'rgba(255,200,60,0.12)', text: '#ffcc3c' },
+    1.0:  { badge: 'rgba(79,142,255,0.18)', text: '#4f8eff' },
+    1.1:  { badge: 'rgba(0,229,160,0.12)',  text: '#00e5a0' },
+    1.25: { badge: 'rgba(0,229,160,0.16)',  text: '#00e5a0' },
+    1.5:  { badge: 'rgba(0,229,160,0.22)',  text: '#00ffc8' },
+  };
+
+  const barColors = {
+    0.5:'#ff6b35', 0.75:'#ff8c60', 0.9:'#ffcc3c',
+    1.0:'#4f8eff', 1.1:'#00e5a0', 1.25:'#00e5a0', 1.5:'#00ffc8',
+  };
+
+  const qWeights = {
+    equal:       [0.25, 0.25, 0.25, 0.25],
+    backloaded:  [0.20, 0.20, 0.25, 0.35],
+    frontloaded: [0.35, 0.25, 0.20, 0.20],
+    ramp:        [0.15, 0.20, 0.30, 0.35],
+  };
+
+  let lockMode = 'ote';
+  let isInternalUpdate = false;
+
+  const fmt = n => '$' + Math.round(n).toLocaleString('en-US');
+  const pctTxt = n => Math.round(n * 100) + '%';
+
+  const baseInput   = document.getElementById('baseSalary');
+  const oteInput    = document.getElementById('totalOTE');
+  const splitSlider = document.getElementById('splitSlider');
+
+  function updateLockModeUI() {
+    document.querySelectorAll('.lock-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === lockMode);
+    });
+
+    const baseTag = document.getElementById('baseTag');
+    const oteTag  = document.getElementById('oteTag');
+    const hint    = document.getElementById('lockHint');
+
+    baseInput.classList.remove('derived');
+    oteInput.classList.remove('derived');
+
+    if (lockMode === 'ote') {
+      baseTag.textContent = 'DRIVER';   baseTag.className = 'lock-badge';
+      oteTag.textContent  = 'LOCKED';   oteTag.className  = 'lock-badge';
+      hint.textContent = '// OTE stays fixed — change Base or Split, the other rebalances';
+    } else if (lockMode === 'base') {
+      baseTag.textContent = 'LOCKED';   baseTag.className = 'lock-badge';
+      oteTag.textContent  = 'DERIVED';  oteTag.className  = 'lock-badge calc';
+      oteInput.classList.add('derived');
+      hint.textContent = '// Base stays fixed — OTE recalculates from split';
+    } else {
+      baseTag.textContent = 'FREE';     baseTag.className = 'lock-badge free';
+      oteTag.textContent  = 'FREE';     oteTag.className  = 'lock-badge free';
+      hint.textContent = '// Edit anything — the split adjusts to match';
+    }
+  }
+
+  document.querySelectorAll('.lock-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      lockMode = btn.dataset.mode;
+      updateLockModeUI();
+      const base = parseFloat(baseInput.value) || 0;
+      const ote  = parseFloat(oteInput.value)  || 0;
+      if (ote > 0) {
+        const pct = Math.round((base / ote) * 100);
+        splitSlider.value = Math.max(30, Math.min(90, pct));
+      }
+      calculate();
+    });
+  });
+
+  function handleBaseChange() {
+    if (isInternalUpdate) return;
+    isInternalUpdate = true;
+    const base = parseFloat(baseInput.value) || 0;
+    const ote  = parseFloat(oteInput.value)  || 0;
+    const splitPct = parseInt(splitSlider.value) / 100;
+
+    if (lockMode === 'ote') {
+      if (ote > 0) {
+        const newSplit = Math.round((base / ote) * 100);
+        splitSlider.value = Math.max(30, Math.min(90, newSplit));
+      }
+    } else if (lockMode === 'base') {
+      if (splitPct > 0) {
+        oteInput.value = Math.round(base / splitPct);
+      }
+    } else {
+      if (ote > 0) {
+        const newSplit = Math.round((base / ote) * 100);
+        splitSlider.value = Math.max(30, Math.min(90, newSplit));
+      }
+    }
+    isInternalUpdate = false;
+    calculate();
+  }
+
+  function handleOTEChange() {
+    if (isInternalUpdate) return;
+    isInternalUpdate = true;
+    const base = parseFloat(baseInput.value) || 0;
+    const ote  = parseFloat(oteInput.value)  || 0;
+    const splitPct = parseInt(splitSlider.value) / 100;
+
+    if (lockMode === 'ote') {
+      baseInput.value = Math.round(ote * splitPct);
+    } else if (lockMode === 'base') {
+      if (ote > 0) {
+        const newSplit = Math.round((base / ote) * 100);
+        splitSlider.value = Math.max(30, Math.min(90, newSplit));
+      }
+    } else {
+      if (ote > 0) {
+        const newSplit = Math.round((base / ote) * 100);
+        splitSlider.value = Math.max(30, Math.min(90, newSplit));
+      }
+    }
+    isInternalUpdate = false;
+    calculate();
+  }
+
+  function handleSplitChange() {
+    if (isInternalUpdate) return;
+    isInternalUpdate = true;
+    const base = parseFloat(baseInput.value) || 0;
+    const ote  = parseFloat(oteInput.value)  || 0;
+    const splitPct = parseInt(splitSlider.value) / 100;
+
+    if (lockMode === 'ote') {
+      baseInput.value = Math.round(ote * splitPct);
+    } else if (lockMode === 'base') {
+      if (splitPct > 0) {
+        oteInput.value = Math.round(base / splitPct);
+      }
+    } else {
+      baseInput.value = Math.round(ote * splitPct);
+    }
+    isInternalUpdate = false;
+    calculate();
+  }
+
+  function calculate() {
+    const base = parseFloat(baseInput.value) || 0;
+    const ote  = parseFloat(oteInput.value)  || 0;
+    const variable = Math.max(0, ote - base);
+    const basePct = ote > 0 ? base / ote : 0;
+    const varPct  = ote > 0 ? variable / ote : 0;
+    const splitBase = Math.round(basePct * 100);
+    const splitVar  = Math.round(varPct  * 100);
+
+    document.getElementById('splitSliderVal').textContent = `${splitBase} / ${splitVar}`;
+
+    const accelOn   = document.getElementById('accelToggle').checked;
+    const accelRate = parseFloat(document.getElementById('accelRate').value);
+    const qKey      = document.getElementById('qWeight').value;
+    const weights   = qWeights[qKey];
+
+    document.getElementById('dispOTE').textContent  = fmt(ote);
+    document.getElementById('dispVar').textContent  = fmt(variable);
+    document.getElementById('dispSplit').textContent = `${splitBase} / ${splitVar}`;
+    document.getElementById('splitBarBase').style.width = splitBase + '%';
+    document.getElementById('basePctDisp').textContent  = splitBase + '%';
+    document.getElementById('varPctDisp').textContent   = splitVar  + '%';
+
+    ['q1','q2','q3','q4'].forEach((id, i) => {
+      document.getElementById(id).textContent = fmt(variable * weights[i]);
+    });
+
+    const tbody = document.getElementById('scenarioBody');
+    tbody.innerHTML = '';
+
+    const maxAtt = 1.5;
+    const maxEarnings = accelOn
+      ? base + variable + variable * (maxAtt - 1.0) * accelRate
+      : base + variable * maxAtt;
+
+    scenarios.forEach(att => {
+      const varEarned = att <= 1.0
+        ? variable * att
+        : accelOn
+          ? variable + variable * (att - 1.0) * accelRate
+          : variable * att;
+
+      const total = base + varEarned;
+      const barWidth = maxEarnings > 0 ? Math.min((total / maxEarnings) * 100, 100) : 0;
+      const c = colors[att];
+      const bc = barColors[att];
+      const isTarget = att === 1.0;
+
+      const tr = document.createElement('tr');
+      if (isTarget) tr.className = 'highlight-row';
+
+      tr.innerHTML = `
+        <td>
+          <span class="attain-badge" style="background:${c.badge};color:${c.text}">${pctTxt(att)}</span>
+          ${isTarget ? '<span style="font-family:JetBrains Mono,monospace;font-size:10px;color:var(--muted);margin-left:8px;letter-spacing:0.05em">target</span>' : ''}
+        </td>
+        <td style="color:${c.text}">${fmt(varEarned)}</td>
+        <td class="bar-cell">
+          <div class="scenario-bar-bg">
+            <div class="scenario-bar-fill" style="width:${barWidth}%;background:${bc}"></div>
+          </div>
+        </td>
+        <td style="color:${isTarget ? '#4f8eff' : 'var(--text)'}">${fmt(total)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  baseInput.addEventListener('input', handleBaseChange);
+  oteInput.addEventListener('input', handleOTEChange);
+  splitSlider.addEventListener('input', handleSplitChange);
+
+  document.getElementById('accelToggle').addEventListener('change', function() {
+    document.getElementById('accelGroup').style.display = this.checked ? 'block' : 'none';
+    calculate();
+  });
+
+  document.getElementById('accelRate').addEventListener('input', function() {
+    document.getElementById('accelLabel').textContent = parseFloat(this.value).toFixed(1) + '×';
+    calculate();
+  });
+
+  document.getElementById('qWeight').addEventListener('change', calculate);
+
+  updateLockModeUI();
+  calculate();
+</script>
+</body>
+</html>
