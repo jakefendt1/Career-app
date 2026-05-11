@@ -2,7 +2,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import type { Role } from '../../lib/types'
-import { calcRealOTE, calcRiskAdjustedOTE } from '../../lib/scoring'
+import { calcRiskAdjustedOTE } from '../../lib/scoring'
 import { formatCurrency } from '../../lib/formatting'
 import { useAppStore } from '../../store/useAppStore'
 

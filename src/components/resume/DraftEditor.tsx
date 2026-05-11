@@ -49,6 +49,7 @@ export function DraftEditor() {
   }
 
   function handleLoadBase() {
+    if (!draft) return
     if (Object.values(draft.jobContent).some(c => c.bullets || c.summary) || draft.profileParagraph || draft.skills) {
       if (!confirm('This will overwrite your current draft content. Continue?')) return
     }
@@ -71,6 +72,7 @@ export function DraftEditor() {
   }
 
   async function handleDownload() {
+    if (!draft) return
     setGenerating(true)
     try {
       // Flush any pending debounced patches first
