@@ -1,6 +1,5 @@
 import { useAppStore } from './store/useAppStore'
 import { AppShell } from './components/layout/AppShell'
-import { Nav } from './components/layout/Nav'
 import { ToastProvider } from './components/ui/toast'
 
 import { RolesList } from './components/roles/RolesList'
@@ -17,15 +16,6 @@ import { OteCalculator } from './components/ote-calculator/OteCalculator'
 function AppContent() {
   const { view } = useAppStore()
 
-  if (view === 'ote-calculator') {
-    return (
-      <div className="min-h-screen" style={{ background: '#0d0f14' }}>
-        <Nav />
-        <OteCalculator />
-      </div>
-    )
-  }
-
   return (
     <AppShell>
       {view === 'roles' && <RolesList />}
@@ -35,6 +25,7 @@ function AppContent() {
       {view === 'resume-editor' && <DraftEditor />}
       {view === 'work-history' && <WorkHistoryManager />}
       {view === 'settings' && <SettingsPanel />}
+      {view === 'ote-calculator' && <OteCalculator />}
     </AppShell>
   )
 }
