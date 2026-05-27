@@ -1,7 +1,8 @@
 import { useAppStore } from '../../store/useAppStore'
+import { useAuth } from '../../lib/auth'
 import type { View } from '../../lib/types'
 import { cn } from '../../lib/cn'
-import { Briefcase, FileText, Settings, Calculator } from 'lucide-react'
+import { Briefcase, FileText, Settings, Calculator, LogOut } from 'lucide-react'
 
 type NavTab = { label: string; view: View; icon: React.ReactNode }
 
@@ -22,8 +23,23 @@ function resolveActiveTab(view: View): View {
   return 'settings'
 }
 
+function SyncDot({ status }: { status: 'idle' | 'syncing' | 'error' }) {
+  return (
+    <span
+      title={status === 'idle' ? 'Synced' : status === 'syncing' ? 'Saving…' : 'Sync error'}
+      className={cn(
+        'inline-block w-2 h-2 rounded-full',
+        status === 'idle' && 'bg-emerald-400',
+        status === 'syncing' && 'bg-blue-400 animate-pulse',
+        status === 'error' && 'bg-red-400',
+      )}
+    />
+  )
+}
+
 export function Nav() {
-  const { view, setView } = useAppStore()
+  const { view, setView, syncStatus } = useAppStore()
+  const { signOut } = useAuth()
   const activeTab = resolveActiveTab(view)
 
   return (
@@ -48,8 +64,16 @@ export function Nav() {
               </button>
             ))}
           </div>
-          <div className="ml-auto">
-            <span className="text-xs text-slate-400">Data stored locally only</span>
+          <div className="ml-auto flex items-center gap-3">
+            <SyncDot status={syncStatus} />
+            <button
+              onClick={() => signOut()}
+              title="Sign out"
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              <LogOut size={14} />
+              Sign out
+            </button>
           </div>
         </div>
       </div>

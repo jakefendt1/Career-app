@@ -94,7 +94,7 @@ export function DataManagement() {
       <Card>
         <CardHeader>
           <h3 className="font-semibold text-slate-800">Export / Import</h3>
-          <p className="text-sm text-slate-500 mt-1">All data stays in your browser. Export to back it up.</p>
+          <p className="text-sm text-slate-500 mt-1">Data is synced to your account. Export for an offline backup.</p>
         </CardHeader>
         <CardBody>
           <div className="flex gap-3">

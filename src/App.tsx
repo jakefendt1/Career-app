@@ -1,6 +1,8 @@
 import { useAppStore } from './store/useAppStore'
 import { AppShell } from './components/layout/AppShell'
 import { ToastProvider } from './components/ui/toast'
+import { AuthProvider } from './lib/auth'
+import { AuthGate } from './components/auth/AuthGate'
 
 import { RolesList } from './components/roles/RolesList'
 import { RoleEditor } from './components/roles/RoleEditor'
@@ -33,7 +35,11 @@ function AppContent() {
 export default function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <AuthProvider>
+        <AuthGate>
+          <AppContent />
+        </AuthGate>
+      </AuthProvider>
     </ToastProvider>
   )
 }
