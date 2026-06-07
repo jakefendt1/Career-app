@@ -13,7 +13,8 @@ export function calcRealOTE(role: Role): number {
 
 export function calcRiskAdjustedOTE(role: Role): number {
   const realOTE = calcRealOTE(role)
-  return realOTE * (role.risk.companyHealth / 10) * (role.risk.roleStability / 10)
+  const riskFactor = (role.risk.companyHealth + role.risk.roleStability) / 20
+  return realOTE * riskFactor
 }
 
 function avg(...values: number[]): number {
@@ -189,7 +190,7 @@ export function computeCompScoreForSensitivity(
   currentRisk: { companyHealth: number; roleStability: number },
   attainmentMultiplier: number,
 ): number {
-  const adjustedTargetOTE = targetOTE * attainmentMultiplier * (targetRisk.companyHealth / 10) * (targetRisk.roleStability / 10)
-  const adjustedCurrentOTE = currentOTE * (currentRisk.companyHealth / 10) * (currentRisk.roleStability / 10)
+  const adjustedTargetOTE = targetOTE * attainmentMultiplier * (targetRisk.companyHealth + targetRisk.roleStability) / 20
+  const adjustedCurrentOTE = currentOTE * (currentRisk.companyHealth + currentRisk.roleStability) / 20
   return compScoreFromDelta(adjustedTargetOTE, adjustedCurrentOTE)
 }

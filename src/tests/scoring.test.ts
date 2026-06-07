@@ -66,14 +66,14 @@ describe('calcRiskAdjustedOTE', () => {
     expect(calcRiskAdjustedOTE(role)).toBeCloseTo(calcRealOTE(role))
   })
 
-  it('half health and stability = 25% of realOTE', () => {
+  it('half health and stability = 50% of realOTE', () => {
     const role = makeRole({ risk: { companyHealth: 5, industryTrajectory: 5, roleStability: 5, compCeiling: 5, cultureFitRisk: 5 } })
-    expect(calcRiskAdjustedOTE(role)).toBeCloseTo(calcRealOTE(role) * 0.25)
+    expect(calcRiskAdjustedOTE(role)).toBeCloseTo(calcRealOTE(role) * 0.5)
   })
 
-  it('zero health = zero risk-adjusted OTE', () => {
+  it('zero health with average stability = 25% of realOTE', () => {
     const role = makeRole({ risk: { companyHealth: 0, industryTrajectory: 5, roleStability: 5, compCeiling: 5, cultureFitRisk: 5 } })
-    expect(calcRiskAdjustedOTE(role)).toBe(0)
+    expect(calcRiskAdjustedOTE(role)).toBeCloseTo(calcRealOTE(role) * 0.25)
   })
 })
 
