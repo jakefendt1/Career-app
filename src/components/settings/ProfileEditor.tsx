@@ -64,7 +64,7 @@ export function ProfileEditor() {
               label="Full Name"
               value={profile.name}
               onChange={e => handleProfileChange('name', e.target.value)}
-              placeholder="Jacob Fendt"
+              placeholder="Alex Johnson"
             />
             <Input
               label="Credentials (optional)"
@@ -83,19 +83,19 @@ export function ProfileEditor() {
               label="Phone"
               value={profile.phone}
               onChange={e => handleProfileChange('phone', e.target.value)}
-              placeholder="262-555-0100"
+              placeholder="555-555-0100"
             />
             <Input
               label="City"
               value={profile.city}
               onChange={e => handleProfileChange('city', e.target.value)}
-              placeholder="Sun Prairie"
+              placeholder="Your City"
             />
             <Input
               label="State"
               value={profile.state}
               onChange={e => handleProfileChange('state', e.target.value)}
-              placeholder="WI"
+              placeholder="ST"
             />
             <Input
               label="LinkedIn URL (optional)"
@@ -144,14 +144,14 @@ export function ProfileEditor() {
                   label="School"
                   value={eduForm.school}
                   onChange={e => setEduForm(f => ({ ...f, school: e.target.value }))}
-                  placeholder="University of Wisconsin – Whitewater"
+                  placeholder="State University"
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="Location"
                     value={eduForm.location}
                     onChange={e => setEduForm(f => ({ ...f, location: e.target.value }))}
-                    placeholder="Whitewater, WI"
+                    placeholder="City, ST"
                   />
                   <Input
                     label="Graduation Year"
@@ -205,13 +205,13 @@ export function ProfileEditor() {
                   label="Certification Name"
                   value={certForm.name}
                   onChange={e => setCertForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Hygienic Design Training"
+                  placeholder="Relevant Certification"
                 />
                 <Input
                   label="Issuer"
                   value={certForm.issuer}
                   onChange={e => setCertForm(f => ({ ...f, issuer: e.target.value }))}
-                  placeholder="Commercial Food Sanitation L.L.C."
+                  placeholder="Issuing Organization"
                 />
                 <Input
                   label="Date"

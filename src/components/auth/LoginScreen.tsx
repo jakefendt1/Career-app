@@ -33,9 +33,22 @@ export function LoginScreen() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">Career Toolkit</h1>
           <p className="text-sm text-slate-500 mt-1">Your career decisions, organized.</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 text-left space-y-2">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">What this does</p>
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">Track every role</span> — comp, growth, lifestyle, and risk — all in one place.
+          </p>
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">Compare side-by-side</span> — score any offer against your current role with weighted criteria you control.
+          </p>
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">Your data stays yours</span> — each account is private; nothing is shared.
+          </p>
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

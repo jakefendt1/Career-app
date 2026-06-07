@@ -9,9 +9,10 @@ import { useAppStore } from '../../store/useAppStore'
 type Props = {
   target: Role
   current: Role
+  height?: number
 }
 
-export function OTEBreakdownChart({ target, current }: Props) {
+export function OTEBreakdownChart({ target, current, height = 220 }: Props) {
   const { preferences } = useAppStore()
 
   function buildEntry(role: Role) {
@@ -48,12 +49,11 @@ export function OTEBreakdownChart({ target, current }: Props) {
   const fmt = (v: number) => formatCurrency(v, preferences.currency)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-slate-700 mb-1">OTE Breakdown</h3>
+    <>
       <p className="text-xs text-slate-400 mb-3">
         Risk-adj: {target.basics.company} {fmt(t.riskAdj)} · {current.basics.company} {fmt(c.riskAdj)}
       </p>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -68,6 +68,6 @@ export function OTEBreakdownChart({ target, current }: Props) {
           <ReferenceLine y={c.riskAdj} stroke="#94a3b8" strokeDasharray="4 2" />
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </>
   )
 }

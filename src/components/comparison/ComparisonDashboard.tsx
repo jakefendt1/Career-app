@@ -7,6 +7,7 @@ import { TradeoffMap } from './TradeoffMap'
 import { RadarChartView } from './RadarChartView'
 import { ScoreBarChart } from './ScoreBarChart'
 import { OTEBreakdownChart } from './OTEBreakdownChart'
+import { ExpandableChartCard } from './ExpandableChartCard'
 import { SectionBreakdown } from './SectionBreakdown'
 import { SensitivityPanel } from './SensitivityPanel'
 import { WouldYouTakeItModal } from './WouldYouTakeItModal'
@@ -83,9 +84,15 @@ export function ComparisonDashboard() {
         <TradeoffMap result={result} target={target} current={current} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <RadarChartView result={result} target={target} current={current} />
-          <ScoreBarChart result={result} target={target} current={current} />
-          <OTEBreakdownChart target={target} current={current} />
+          <ExpandableChartCard title="Section Scores" compactHeight={260} expandedHeight={480}>
+            {(h) => <RadarChartView result={result} target={target} current={current} height={h} />}
+          </ExpandableChartCard>
+          <ExpandableChartCard title="Weighted Section Scores" compactHeight={220} expandedHeight={420}>
+            {(h) => <ScoreBarChart result={result} target={target} current={current} height={h} />}
+          </ExpandableChartCard>
+          <ExpandableChartCard title="OTE Breakdown" compactHeight={220} expandedHeight={420}>
+            {(h) => <OTEBreakdownChart target={target} current={current} height={h} />}
+          </ExpandableChartCard>
         </div>
 
         <SectionBreakdown result={result} target={target} current={current} />
