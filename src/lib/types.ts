@@ -25,6 +25,16 @@ export type Role = {
     retirementMatchPct?: number;
     carAllowance?: number;
     otherPerks?: string;
+    commissionParams?: {
+      type: 'margin' | 'revenue' | 'tiered';
+      avgDealSize?: number;
+      avgGrossMarginPct?: number;
+      marginRate?: number;
+      expectedDealsPerYear?: number;
+      revenueQuota?: number;
+      revenueRate?: number;
+      tiers?: { thresholdPct: number; rate: number }[];
+    };
   };
 
   career: {
@@ -192,4 +202,4 @@ export type Nudge = {
   section?: string;
 };
 
-export type View = 'roles' | 'role-editor' | 'comparison' | 'resume' | 'resume-editor' | 'work-history' | 'settings' | 'ote-calculator';
+export type View = 'roles' | 'role-editor' | 'comparison' | 'resume' | 'resume-editor' | 'work-history' | 'settings' | 'ote-calculator' | 'commission-calc';

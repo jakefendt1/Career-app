@@ -2,7 +2,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { useAuth } from '../../lib/auth'
 import type { View } from '../../lib/types'
 import { cn } from '../../lib/cn'
-import { Briefcase, FileText, Settings, Calculator, LogOut } from 'lucide-react'
+import { Briefcase, FileText, Settings, Calculator, TrendingUp, LogOut } from 'lucide-react'
 
 type NavTab = { label: string; view: View; icon: React.ReactNode }
 
@@ -10,6 +10,7 @@ const TABS: NavTab[] = [
   { label: 'Role Compare', view: 'roles', icon: <Briefcase size={16} /> },
   { label: 'Resume Builder', view: 'resume', icon: <FileText size={16} /> },
   { label: 'OTE Calc', view: 'ote-calculator', icon: <Calculator size={16} /> },
+  { label: 'Commission Calc', view: 'commission-calc', icon: <TrendingUp size={16} /> },
   { label: 'Settings', view: 'settings', icon: <Settings size={16} /> },
 ]
 
@@ -20,6 +21,7 @@ function resolveActiveTab(view: View): View {
   if (ROLE_VIEWS.includes(view)) return 'roles'
   if (RESUME_VIEWS.includes(view)) return 'resume'
   if (view === 'ote-calculator') return 'ote-calculator'
+  if (view === 'commission-calc') return 'commission-calc'
   return 'settings'
 }
 

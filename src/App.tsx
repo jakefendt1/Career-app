@@ -14,6 +14,7 @@ import { WorkHistoryManager } from './components/resume/WorkHistoryManager'
 
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { OteCalculator } from './components/ote-calculator/OteCalculator'
+import { CommissionCalculator } from './components/commission-calc/CommissionCalculator'
 
 function AppContent() {
   const { view } = useAppStore()
@@ -28,6 +29,7 @@ function AppContent() {
       {view === 'work-history' && <WorkHistoryManager />}
       {view === 'settings' && <SettingsPanel />}
       {view === 'ote-calculator' && <OteCalculator />}
+      {view === 'commission-calc' && <CommissionCalculator />}
     </AppShell>
   )
 }
