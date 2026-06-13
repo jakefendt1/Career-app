@@ -22,7 +22,7 @@ type RoleCardProps = {
 }
 
 export function RoleCard({ role }: RoleCardProps) {
-  const { deleteRole, markRoleCurrent, duplicateRole, setView, setEditingRoleId, setHubRoleId, setActiveComparison, roles } = useAppStore()
+  const { deleteRole, markRoleCurrent, duplicateRole, setView, setHubRoleId, setActiveComparison, roles } = useAppStore()
   const realOTE = calcRealOTE(role)
   const currentRole = roles.find(r => r.isCurrent)
 
