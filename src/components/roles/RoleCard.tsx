@@ -5,7 +5,7 @@ import { formatCurrency, formatRelativeDate } from '../../lib/formatting'
 import { Card, CardBody } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Copy, Trash2, Star, BarChart2 } from 'lucide-react'
+import { Copy, Trash2, Star, BarChart2, FileText } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 const STATUS_VARIANTS: Record<Role['status'], 'default' | 'blue' | 'green' | 'yellow' | 'slate' | 'red'> = {
@@ -63,12 +63,21 @@ export function RoleCard({ role }: RoleCardProps) {
           <span className="text-xs text-slate-500">OTE</span>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400 mb-4">
+        <div className="flex items-center gap-3 text-xs text-slate-400 mb-4 flex-wrap">
           <span>{role.basics.workMode}</span>
           <span>•</span>
           <span>{role.basics.location}</span>
           <span>•</span>
           <span>Updated {formatRelativeDate(role.updatedAt)}</span>
+          {(role.attachedDraftIds?.length ?? 0) > 0 && (
+            <>
+              <span>•</span>
+              <span className="flex items-center gap-0.5 text-blue-500">
+                <FileText size={11} />
+                {role.attachedDraftIds!.length} resume{role.attachedDraftIds!.length !== 1 ? 's' : ''}
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

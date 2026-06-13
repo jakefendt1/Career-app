@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import { OteCalculator } from '../ote-calculator/OteCalculator'
 import { CommissionCalculator } from '../commission-calc/CommissionCalculator'
-import { DraftsList } from '../resume/DraftsList'
+import { DraftCard } from '../resume/DraftCard'
 import { calcRealOTE, calcRiskAdjustedOTE, compareRoles } from '../../lib/scoring'
 import { formatCurrency } from '../../lib/formatting'
-import type { ComparisonResult, Role } from '../../lib/types'
+import type { ComparisonResult, ResumeDraft, Role } from '../../lib/types'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { ArrowLeft, Edit2, BarChart2 } from 'lucide-react'
+import { ArrowLeft, Edit2, BarChart2, FileText, Plus, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 type HubTab = 'overview' | 'ote' | 'commission' | 'resumes'
@@ -36,6 +36,120 @@ const VERDICT_COLORS: Record<string, string> = {
   'lateral': 'text-slate-600 bg-slate-100 border-slate-200',
   'soft-stay': 'text-orange-700 bg-orange-50 border-orange-200',
   'strong-stay': 'text-red-700 bg-red-50 border-red-200',
+}
+
+// ── Resumes tab ───────────────────────────────────────────────────────────────
+
+function createBlankDraft(): ResumeDraft {
+  const now = new Date().toISOString()
+  return {
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    targetCompany: '',
+    targetRole: '',
+    profileParagraph: '',
+    jobContent: {},
+    skills: '',
+    technicalAbilities: '',
+  }
+}
+
+function ResumesTab({ role }: { role: Role }) {
+  const { resumeDrafts, updateRole, addResumeDraft, setEditingDraftId, setView } = useAppStore()
+  const attachedIds = role.attachedDraftIds ?? []
+  const companyName = role.basics.company
+
+  const companyDrafts = resumeDrafts.filter(
+    d => d.targetCompany.toLowerCase() === companyName.toLowerCase(),
+  )
+  const attachedOnly = resumeDrafts.filter(
+    d => attachedIds.includes(d.id) && d.targetCompany.toLowerCase() !== companyName.toLowerCase(),
+  )
+  const shownIds = new Set([...companyDrafts.map(d => d.id), ...attachedOnly.map(d => d.id)])
+  const attachable = resumeDrafts.filter(d => !shownIds.has(d.id))
+
+  const shown = [...attachedOnly, ...companyDrafts].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  )
+
+  function attach(draftId: string) {
+    updateRole(role.id, { attachedDraftIds: [...attachedIds, draftId] })
+  }
+
+  function detach(draftId: string) {
+    updateRole(role.id, { attachedDraftIds: attachedIds.filter(id => id !== draftId) })
+  }
+
+  function handleNewDraft() {
+    const draft = { ...createBlankDraft(), targetCompany: companyName }
+    addResumeDraft(draft)
+    setEditingDraftId(draft.id)
+    setView('resume-editor')
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700">
+          Resumes for {companyName}
+          {shown.length > 0 && <span className="ml-2 text-slate-400 font-normal">({shown.length})</span>}
+        </h2>
+        <Button size="sm" onClick={handleNewDraft}>
+          <Plus size={13} /> New Resume
+        </Button>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-300 rounded-xl">
+          <FileText size={24} className="text-slate-300 mx-auto mb-2" />
+          <p className="text-sm text-slate-500 mb-1">No resumes attached yet.</p>
+          <p className="text-xs text-slate-400 mb-4">Create a new one or attach an existing resume below.</p>
+          <Button size="sm" onClick={handleNewDraft}><Plus size={13} /> Create Resume for {companyName}</Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {shown.map(draft => (
+            <div key={draft.id} className="relative group/card">
+              <DraftCard draft={draft} />
+              {attachedIds.includes(draft.id) && (
+                <button
+                  onClick={() => detach(draft.id)}
+                  title="Detach from this role"
+                  className="absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center gap-1 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs text-red-500 hover:bg-red-50 shadow-sm"
+                >
+                  <X size={10} /> Detach
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {attachable.length > 0 && (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+            <p className="text-sm font-medium text-slate-700">Attach an existing resume</p>
+            <p className="text-xs text-slate-400 mt-0.5">Link a resume from another application to this role</p>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {attachable.map(draft => (
+              <div key={draft.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                <FileText size={14} className="text-blue-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{draft.targetCompany || 'Untitled'}</p>
+                  <p className="text-xs text-slate-400 truncate">{draft.targetRole || 'No role specified'}</p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => attach(draft.id)}>
+                  <Plus size={12} /> Attach
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
@@ -263,7 +377,7 @@ export function RoleHub() {
         <CommissionCalculator initialParams={role.comp.commissionParams} />
       )}
       {activeTab === 'resumes' && (
-        <DraftsList companyFilter={role.basics.company} />
+        <ResumesTab role={role} />
       )}
     </div>
   )

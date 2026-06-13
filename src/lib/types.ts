@@ -71,6 +71,8 @@ export type Role = {
     openQuestions?: string;
   };
 
+  attachedDraftIds?: string[];
+
   confidence: {
     comp: 'high' | 'medium' | 'low';
     career: 'high' | 'medium' | 'low';
