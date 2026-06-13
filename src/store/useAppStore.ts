@@ -39,6 +39,7 @@ type StoreState = AppState & {
   view: View
   editingRoleId: string | null
   editingDraftId: string | null
+  hubRoleId: string | null
   dismissedNudges: Record<string, string[]>
   syncStatus: SyncStatus
   currentUserId: string | null
@@ -46,6 +47,7 @@ type StoreState = AppState & {
   setView: (view: View) => void
   setEditingRoleId: (id: string | null) => void
   setEditingDraftId: (id: string | null) => void
+  setHubRoleId: (id: string | null) => void
   setActiveComparison: (c: AppState['activeComparison']) => void
   setSyncStatus: (s: SyncStatus) => void
   setCurrentUser: (id: string | null) => void
@@ -112,6 +114,7 @@ export const useAppStore = create<StoreState>((set, get) => {
     view: 'roles',
     editingRoleId: null,
     editingDraftId: null,
+    hubRoleId: null,
     dismissedNudges: {},
     syncStatus: 'idle',
     currentUserId: null,
@@ -119,6 +122,7 @@ export const useAppStore = create<StoreState>((set, get) => {
     setView: (view) => set({ view }),
     setEditingRoleId: (id) => set({ editingRoleId: id }),
     setEditingDraftId: (id) => set({ editingDraftId: id }),
+    setHubRoleId: (id) => set({ hubRoleId: id }),
     setActiveComparison: (c) => set({ activeComparison: c }),
     setSyncStatus: (syncStatus) => set({ syncStatus }),
     setCurrentUser: (id) => set({ currentUserId: id }),

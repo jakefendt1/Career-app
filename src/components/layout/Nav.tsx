@@ -14,7 +14,7 @@ const TABS: NavTab[] = [
   { label: 'Settings', view: 'settings', icon: <Settings size={16} /> },
 ]
 
-const ROLE_VIEWS: View[] = ['roles', 'role-editor', 'comparison']
+const ROLE_VIEWS: View[] = ['roles', 'role-editor', 'comparison', 'role-hub']
 const RESUME_VIEWS: View[] = ['resume', 'resume-editor', 'work-history']
 
 function resolveActiveTab(view: View): View {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { cn } from '../../lib/cn'
 import { Plus, Trash2 } from 'lucide-react'
+import type { Role } from '../../lib/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -155,13 +156,20 @@ const GM_STEPS = [10, 15, 20, 25, 30, 35, 40]
 
 // ── Mode A: Margin Commission ─────────────────────────────────────────────────
 
-function MarginMode() {
+interface MarginModeProps {
+  initialDeal?: number
+  initialGm?: number
+  initialRate?: number
+  initialDealsPerYear?: number
+}
+
+function MarginMode({ initialDeal = 1_000_000, initialGm = 25, initialRate = 3, initialDealsPerYear = 12 }: MarginModeProps) {
   const [solve, setSolve] = useState<MarginSolve>('commission')
-  const [deal, setDeal] = useState(1_000_000)
-  const [gm, setGm] = useState(25)
-  const [rate, setRate] = useState(3)
+  const [deal, setDeal] = useState(initialDeal)
+  const [gm, setGm] = useState(initialGm)
+  const [rate, setRate] = useState(initialRate)
   const [targetComm, setTargetComm] = useState(7_500)
-  const [dealsPerYear, setDealsPerYear] = useState(12)
+  const [dealsPerYear, setDealsPerYear] = useState(initialDealsPerYear)
 
   function computeOutput(): number {
     switch (solve) {
@@ -336,10 +344,15 @@ function MarginMode() {
 
 // ── Mode B: Revenue Commission ────────────────────────────────────────────────
 
-function RevenueMode() {
+interface RevenueModeProps {
+  initialQuota?: number
+  initialRate?: number
+}
+
+function RevenueMode({ initialQuota = 1_000_000, initialRate = 5 }: RevenueModeProps) {
   const [solve, setSolve] = useState<RevenueSolve>('commission')
-  const [quota, setQuota] = useState(1_000_000)
-  const [rate, setRate] = useState(5)
+  const [quota, setQuota] = useState(initialQuota)
+  const [rate, setRate] = useState(initialRate)
   const [att, setAtt] = useState(100)
   const [targetComm, setTargetComm] = useState(50_000)
   const [base, setBase] = useState(80_000)
@@ -691,8 +704,24 @@ function TieredMode() {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CommissionCalculator() {
-  const [mode, setMode] = useState<Mode>('margin')
+interface CommissionCalculatorProps {
+  initialParams?: Role['comp']['commissionParams']
+}
+
+export function CommissionCalculator({ initialParams }: CommissionCalculatorProps) {
+  const [mode, setMode] = useState<Mode>(initialParams?.type ?? 'margin')
+
+  const marginProps: MarginModeProps = initialParams?.type === 'margin' ? {
+    initialDeal: initialParams.avgDealSize,
+    initialGm: initialParams.avgGrossMarginPct,
+    initialRate: initialParams.marginRate,
+    initialDealsPerYear: initialParams.expectedDealsPerYear,
+  } : {}
+
+  const revenueProps: RevenueModeProps = initialParams?.type === 'revenue' ? {
+    initialQuota: initialParams.revenueQuota,
+    initialRate: initialParams.revenueRate,
+  } : {}
 
   return (
     <div className="space-y-4">
@@ -725,8 +754,8 @@ export function CommissionCalculator() {
         ))}
       </div>
 
-      {mode === 'margin'  && <MarginMode />}
-      {mode === 'revenue' && <RevenueMode />}
+      {mode === 'margin'  && <MarginMode {...marginProps} />}
+      {mode === 'revenue' && <RevenueMode {...revenueProps} />}
       {mode === 'tiered'  && <TieredMode />}
     </div>
   )

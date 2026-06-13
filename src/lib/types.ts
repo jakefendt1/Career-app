@@ -202,4 +202,4 @@ export type Nudge = {
   section?: string;
 };
 
-export type View = 'roles' | 'role-editor' | 'comparison' | 'resume' | 'resume-editor' | 'work-history' | 'settings' | 'ote-calculator' | 'commission-calc';
+export type View = 'roles' | 'role-editor' | 'comparison' | 'resume' | 'resume-editor' | 'work-history' | 'settings' | 'ote-calculator' | 'commission-calc' | 'role-hub';

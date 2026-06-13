@@ -173,11 +173,16 @@ function LockBar({ mode, onChange }: { mode: LockMode; onChange: (m: LockMode) =
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function OteCalculator() {
+interface OteCalculatorProps {
+  initialBase?: number
+  initialOte?: number
+}
+
+export function OteCalculator({ initialBase = 140_000, initialOte = 233_316 }: OteCalculatorProps) {
   // Core inputs
   const [lockMode, setLockMode] = useState<LockMode>('ote')
-  const [base, setBase] = useState(140000)
-  const [ote, setOte] = useState(233316)
+  const [base, setBase] = useState(initialBase)
+  const [ote, setOte] = useState(initialOte)
   const [split, setSplit] = useState(60)
   const [qWeight, setQWeight] = useState<QWeight>('equal')
   const [accelOn, setAccelOn] = useState(false)

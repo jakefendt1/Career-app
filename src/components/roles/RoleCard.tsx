@@ -5,7 +5,7 @@ import { formatCurrency, formatRelativeDate } from '../../lib/formatting'
 import { Card, CardBody } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Edit2, Copy, Trash2, Star, BarChart2 } from 'lucide-react'
+import { Copy, Trash2, Star, BarChart2 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
 const STATUS_VARIANTS: Record<Role['status'], 'default' | 'blue' | 'green' | 'yellow' | 'slate' | 'red'> = {
@@ -22,13 +22,13 @@ type RoleCardProps = {
 }
 
 export function RoleCard({ role }: RoleCardProps) {
-  const { deleteRole, markRoleCurrent, duplicateRole, setView, setEditingRoleId, setActiveComparison, roles } = useAppStore()
+  const { deleteRole, markRoleCurrent, duplicateRole, setView, setEditingRoleId, setHubRoleId, setActiveComparison, roles } = useAppStore()
   const realOTE = calcRealOTE(role)
   const currentRole = roles.find(r => r.isCurrent)
 
-  function handleEdit() {
-    setEditingRoleId(role.id)
-    setView('role-editor')
+  function handleOpenHub() {
+    setHubRoleId(role.id)
+    setView('role-hub')
   }
 
   function handleCompare() {
@@ -40,7 +40,10 @@ export function RoleCard({ role }: RoleCardProps) {
   const canCompare = currentRole && !role.isCurrent
 
   return (
-    <Card className={cn('group transition-shadow hover:shadow-md', role.isCurrent && 'ring-2 ring-green-400')}>
+    <Card
+      className={cn('group transition-shadow hover:shadow-md cursor-pointer', role.isCurrent && 'ring-2 ring-green-400')}
+      onClick={handleOpenHub}
+    >
       <CardBody className="pt-5">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
@@ -69,24 +72,22 @@ export function RoleCard({ role }: RoleCardProps) {
         </div>
 
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" onClick={handleEdit}>
-            <Edit2 size={13} /> Edit
-          </Button>
           {canCompare && (
-            <Button variant="secondary" size="sm" onClick={handleCompare}>
+            <Button variant="secondary" size="sm" onClick={e => { e.stopPropagation(); handleCompare() }}>
               <BarChart2 size={13} /> Compare
             </Button>
           )}
           {!role.isCurrent && (
-            <Button variant="ghost" size="sm" onClick={() => markRoleCurrent(role.id)}>
+            <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); markRoleCurrent(role.id) }}>
               <Star size={13} /> Mark Current
             </Button>
           )}
           <div className="ml-auto flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => duplicateRole(role.id)}>
+            <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); duplicateRole(role.id) }}>
               <Copy size={13} />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => {
+            <Button variant="ghost" size="sm" onClick={e => {
+              e.stopPropagation()
               if (confirm(`Delete ${role.basics.company} – ${role.basics.title}?`)) deleteRole(role.id)
             }} className="text-red-500 hover:text-red-700 hover:bg-red-50">
               <Trash2 size={13} />
