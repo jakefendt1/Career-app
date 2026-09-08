@@ -6,36 +6,21 @@ import { DraftCard } from '../resume/DraftCard'
 import { calcRealOTE, calcRiskAdjustedOTE, compareRoles } from '../../lib/scoring'
 import { formatCurrency } from '../../lib/formatting'
 import type { ComparisonResult, ResumeDraft, Role } from '../../lib/types'
-import { Badge } from '../ui/badge'
+import { Badge, type BadgeVariant } from '../ui/badge'
 import { Button } from '../ui/button'
 import { ArrowLeft, Edit2, BarChart2, FileText, Plus, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
+import { VERDICT_CONFIG, verdictClasses } from '../../lib/verdict'
 
 type HubTab = 'overview' | 'ote' | 'commission' | 'resumes'
 
-const STATUS_VARIANTS: Record<Role['status'], string> = {
+const STATUS_VARIANTS: Record<Role['status'], BadgeVariant> = {
   current: 'green',
   evaluating: 'blue',
   interviewing: 'yellow',
-  offer: 'default',
+  offer: 'orange',
   accepted: 'green',
   declined: 'red',
-}
-
-const VERDICT_LABELS: Record<string, string> = {
-  'strong-move': 'Strong Move',
-  'soft-move': 'Soft Move',
-  'lateral': 'Lateral',
-  'soft-stay': 'Soft Stay',
-  'strong-stay': 'Strong Stay',
-}
-
-const VERDICT_COLORS: Record<string, string> = {
-  'strong-move': 'text-emerald-700 bg-emerald-50 border-emerald-200',
-  'soft-move': 'text-blue-700 bg-blue-50 border-blue-200',
-  'lateral': 'text-slate-600 bg-slate-100 border-slate-200',
-  'soft-stay': 'text-orange-700 bg-orange-50 border-orange-200',
-  'strong-stay': 'text-red-700 bg-red-50 border-red-200',
 }
 
 // ── Resumes tab ───────────────────────────────────────────────────────────────
@@ -189,8 +174,8 @@ function OverviewTab({
         <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-700">vs. {currentRole.basics.company}</p>
-            <span className={cn('px-3 py-1 rounded-full text-xs font-semibold border', VERDICT_COLORS[comparison.verdict])}>
-              {VERDICT_LABELS[comparison.verdict]}
+            <span className={cn('px-3 py-1 rounded-full text-xs font-semibold border', verdictClasses(comparison.verdict))}>
+              {VERDICT_CONFIG[comparison.verdict].shortLabel}
             </span>
           </div>
 
@@ -323,7 +308,7 @@ export function RoleHub() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold text-slate-900 truncate">{role.basics.company}</h1>
-            <Badge variant={STATUS_VARIANTS[role.status] as 'default'}>{role.status}</Badge>
+            <Badge variant={STATUS_VARIANTS[role.status]}>{role.status}</Badge>
           </div>
           <p className="text-sm text-slate-500 truncate">{role.basics.title}</p>
         </div>
@@ -369,12 +354,13 @@ export function RoleHub() {
       )}
       {activeTab === 'ote' && (
         <OteCalculator
+          roleId={role.id}
           initialBase={role.comp.base}
           initialOte={role.comp.base + role.comp.variableTarget}
         />
       )}
       {activeTab === 'commission' && (
-        <CommissionCalculator initialParams={role.comp.commissionParams} />
+        <CommissionCalculator roleId={role.id} initialPlan={role.comp.commissionPlan} />
       )}
       {activeTab === 'resumes' && (
         <ResumesTab role={role} />

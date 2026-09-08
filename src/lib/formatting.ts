@@ -44,3 +44,18 @@ export function formatRelativeDate(iso: string): string {
 export function sanitizeFilename(s: string): string {
   return s.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
 }
+
+/** Compact currency for tight spaces: $1.2M, $233k, $850 */
+export function formatCompactCurrency(n: number): string {
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}$${Math.round(abs / 1_000)}k`;
+  return `${sign}$${Math.round(abs)}`;
+}
+
+/** Signed currency delta: +$41,000 / -$12,500 */
+export function formatCurrencyDelta(n: number, currency = 'USD'): string {
+  const abs = formatCurrency(Math.abs(n), currency);
+  return n >= 0 ? `+${abs}` : `-${abs}`;
+}

@@ -3,8 +3,10 @@ import { useAppStore } from '../../store/useAppStore'
 import type { Role } from '../../lib/types'
 import { calcRealOTE } from '../../lib/scoring'
 import { RoleCard } from './RoleCard'
+import { Scoreboard } from './Scoreboard'
 import { Button } from '../ui/button'
-import { Plus, AlertCircle } from 'lucide-react'
+import { cn } from '../../lib/cn'
+import { Plus, AlertCircle, Table2, LayoutGrid } from 'lucide-react'
 
 function createBlankRole(): Role {
   const now = new Date().toISOString()
@@ -26,13 +28,27 @@ function createBlankRole(): Role {
 }
 
 type SortKey = 'updatedAt' | 'ote' | 'company'
+type ViewMode = 'scoreboard' | 'cards'
 
 export function RolesList() {
-  const { roles, addRole, setView, setEditingRoleId } = useAppStore()
+  const { roles, addRole, setView, setEditingRoleId, setHubRoleId, setActiveComparison } = useAppStore()
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('scoreboard')
 
   const hasCurrentRole = roles.some(r => r.isCurrent)
+  const currentRole = roles.find(r => r.isCurrent)
+
+  function handleOpenHub(roleId: string) {
+    setHubRoleId(roleId)
+    setView('role-hub')
+  }
+
+  function handleCompare(roleId: string) {
+    if (!currentRole) return
+    setActiveComparison({ currentRoleId: currentRole.id, targetRoleId: roleId })
+    setView('comparison')
+  }
 
   function handleAddRole() {
     const role = createBlankRole()
@@ -66,7 +82,32 @@ export function RolesList() {
       )}
 
       {roles.length > 0 && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setViewMode('scoreboard')}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors', viewMode === 'scoreboard' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}
+            >
+              <Table2 size={13} /> Scoreboard
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors', viewMode === 'cards' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50')}
+            >
+              <LayoutGrid size={13} /> Cards
+            </button>
+          </div>
+          {viewMode === 'cards' && (
+            <select
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value as SortKey)}
+              className="h-8 rounded border border-slate-300 px-2 text-xs text-slate-600 bg-white focus:outline-none"
+            >
+              <option value="updatedAt">Last updated</option>
+              <option value="ote">OTE</option>
+              <option value="company">Company</option>
+            </select>
+          )}
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
@@ -79,15 +120,6 @@ export function RolesList() {
             <option value="offer">Offer</option>
             <option value="accepted">Accepted</option>
             <option value="declined">Declined</option>
-          </select>
-          <select
-            value={sortKey}
-            onChange={e => setSortKey(e.target.value as SortKey)}
-            className="h-8 rounded border border-slate-300 px-2 text-xs text-slate-600 bg-white focus:outline-none"
-          >
-            <option value="updatedAt">Last updated</option>
-            <option value="ote">OTE</option>
-            <option value="company">Company</option>
           </select>
           <span className="text-xs text-slate-400">{filtered.length} role{filtered.length !== 1 ? 's' : ''}</span>
         </div>
@@ -105,6 +137,8 @@ export function RolesList() {
             <p className="text-slate-400">No roles match this filter.</p>
           )}
         </div>
+      ) : viewMode === 'scoreboard' ? (
+        <Scoreboard roles={filtered} onCompare={handleCompare} onOpenHub={handleOpenHub} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(role => <RoleCard key={role.id} role={role} />)}

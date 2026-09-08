@@ -14,16 +14,16 @@ export function ExpandableChartCard({ title, compactHeight, expandedHeight, chil
 
   return (
     <>
-      <div
-        className="relative bg-white border border-slate-200 rounded-lg p-4 cursor-pointer group"
-        onClick={() => setOpen(true)}
-      >
+      <div className="relative bg-white border border-slate-200 rounded-lg p-4 group">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-          <Maximize2
-            size={13}
-            className="text-slate-300 group-hover:text-slate-500 transition-colors"
-          />
+          <button
+            onClick={() => setOpen(true)}
+            title="Expand"
+            className="text-slate-300 hover:text-slate-600 transition-colors -m-1 p-1"
+          >
+            <Maximize2 size={13} />
+          </button>
         </div>
         {children(compactHeight)}
       </div>

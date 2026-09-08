@@ -1,6 +1,6 @@
 import { cn } from '../../lib/cn'
 
-type BadgeVariant = 'default' | 'blue' | 'green' | 'yellow' | 'orange' | 'red' | 'slate'
+export type BadgeVariant = 'default' | 'blue' | 'green' | 'yellow' | 'orange' | 'red' | 'slate'
 
 const variantClasses: Record<BadgeVariant, string> = {
   default: 'bg-slate-100 text-slate-700',

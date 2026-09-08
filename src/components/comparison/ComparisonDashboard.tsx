@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import { compareRoles } from '../../lib/scoring'
 import { computeAllNudges } from '../../lib/nudges'
-import { VerdictCard } from './VerdictCard'
+import { HeadlineCard } from './HeadlineCard'
 import { TradeoffMap } from './TradeoffMap'
-import { RadarChartView } from './RadarChartView'
 import { ScoreBarChart } from './ScoreBarChart'
 import { OTEBreakdownChart } from './OTEBreakdownChart'
 import { ExpandableChartCard } from './ExpandableChartCard'
@@ -62,7 +61,7 @@ export function ComparisonDashboard() {
       />
 
       <div className="space-y-6">
-        <VerdictCard
+        <HeadlineCard
           result={result}
           target={target}
           current={current}
@@ -81,12 +80,11 @@ export function ComparisonDashboard() {
           </div>
         )}
 
-        <TradeoffMap result={result} target={target} current={current} />
+        <TradeoffMap target={target} current={current} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <ExpandableChartCard title="Section Scores" compactHeight={260} expandedHeight={480}>
-            {(h) => <RadarChartView result={result} target={target} current={current} height={h} />}
-          </ExpandableChartCard>
+        <SensitivityPanel target={target} current={current} preferences={preferences} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ExpandableChartCard title="Weighted Section Scores" compactHeight={220} expandedHeight={420}>
             {(h) => <ScoreBarChart result={result} target={target} current={current} height={h} />}
           </ExpandableChartCard>
@@ -96,8 +94,6 @@ export function ComparisonDashboard() {
         </div>
 
         <SectionBreakdown result={result} target={target} current={current} />
-
-        <SensitivityPanel target={target} current={current} preferences={preferences} />
       </div>
     </div>
   )

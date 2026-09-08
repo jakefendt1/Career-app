@@ -120,3 +120,16 @@ When the work is done, the plan converts to a short summary: what shipped, what 
 You're building software against a real codebase. Read before writing, plan before changing, test before handing back, and document the lessons so the project gets sharper over time.
 
 Stay pragmatic. Stay reliable. Keep the build green.
+
+## Project-Specific Conventions (Career Toolkit)
+
+Established during the September 2026 interface/calculator overhaul — follow these instead of re-deriving them:
+
+- **Commission and comp math lives in `src/lib/comp.ts` only.** Margin, revenue, tiered (marginal/retroactive), flat/SPIFF, accelerator/cap, draw/ramp, tax estimate — all pure functions, no React/store imports (a type-only import from `types.ts` is fine). If a component needs commission math, import from here; don't reimplement it inline. `estimateAnnualCommission(plan)` is the single "what would this plan pay in a normal year" entry point — both the Commission Calculator's bridge button and the Compensation section's inline builder call it.
+- **`Role.comp.commissionPlan: CommissionPlan`** (in `types.ts`) replaced the old `commissionParams`. Adding a new field to `CommissionPlan` doesn't need a migration; changing the *shape* of an existing field does — extend `migrateRole()` in `types.ts` and add a case to `src/tests/migration.test.ts`. `migrateRole` runs in the store's `loadState`, `loadFromCloud`, and `importData` — all three, or old saved data breaks silently.
+- **Verdict labels/colors come from `src/lib/verdict.ts`** (`VERDICT_CONFIG`, `verdictClasses`). Don't redeclare the label/color maps locally — three places did before this overhaul and drifted.
+- **Plain-English comparison sentences come from `src/lib/narrative.ts`** (`buildHeadline`, `buildNarrative`), not hand-built strings against raw `FieldDelta` values. It ranks by each field's normalized (0-10) delta weighted by the user's section weight, so real-unit fields (travel days, hours, commute) and 1-10 rating fields are comparable.
+- **Present Mode** (`src/components/ui/present.tsx`) is the shared primitive for "pull this up in front of someone" views: `PresentModeProvider` wraps a calculator, `usePresentMode()`/`HideWhenPresenting`/`Stat` drive the collapsed-inputs, big-numbers layout. Both calculators use it identically — reuse it before building a bespoke toggle.
+- **`OteCalculator` and `CommissionCalculator` take an optional `roleId`.** When set, they read/write the matching `Role` via the store so edits survive navigating away and back; when omitted (the standalone nav-tab use), state is local and ephemeral. Don't add role-specific fields without threading them through this same persist path.
+- **`MoneyInput`/`PctInput` live in `src/components/ui/money.tsx`.** Don't recreate them per-component — that happened once already and the two copies drifted.
+- **Completeness signal**: `src/lib/completeness.ts` counts how many of the 15 subjective 1-10 sliders a role has moved off their default (5). An unrated role scores like a genuinely average one — this is a UI hint only, the scoring model itself is unchanged.

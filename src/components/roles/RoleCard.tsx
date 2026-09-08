@@ -3,16 +3,16 @@ import type { Role } from '../../lib/types'
 import { calcRealOTE } from '../../lib/scoring'
 import { formatCurrency, formatRelativeDate } from '../../lib/formatting'
 import { Card, CardBody } from '../ui/card'
-import { Badge } from '../ui/badge'
+import { Badge, type BadgeVariant } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Copy, Trash2, Star, BarChart2, FileText } from 'lucide-react'
 import { cn } from '../../lib/cn'
 
-const STATUS_VARIANTS: Record<Role['status'], 'default' | 'blue' | 'green' | 'yellow' | 'slate' | 'red'> = {
+const STATUS_VARIANTS: Record<Role['status'], BadgeVariant> = {
   current: 'green',
   evaluating: 'blue',
   interviewing: 'yellow',
-  offer: 'orange' as 'default',
+  offer: 'orange',
   accepted: 'green',
   declined: 'red',
 }
@@ -49,7 +49,7 @@ export function RoleCard({ role }: RoleCardProps) {
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-slate-900 truncate">{role.basics.company}</h3>
-              <Badge variant={STATUS_VARIANTS[role.status] as 'default'}>
+              <Badge variant={STATUS_VARIANTS[role.status]}>
                 {role.status}
               </Badge>
             </div>

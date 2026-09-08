@@ -3,6 +3,7 @@ import { AppShell } from './components/layout/AppShell'
 import { ToastProvider } from './components/ui/toast'
 import { AuthProvider } from './lib/auth'
 import { AuthGate } from './components/auth/AuthGate'
+import { useHashRouting } from './lib/routing'
 
 import { RolesList } from './components/roles/RolesList'
 import { RoleEditor } from './components/roles/RoleEditor'
@@ -19,6 +20,7 @@ import { CommissionCalculator } from './components/commission-calc/CommissionCal
 
 function AppContent() {
   const { view } = useAppStore()
+  useHashRouting()
 
   return (
     <AppShell>

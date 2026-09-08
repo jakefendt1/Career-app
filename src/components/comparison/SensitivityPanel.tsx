@@ -4,6 +4,7 @@ import { compareRoles } from '../../lib/scoring'
 import { Slider } from '../ui/slider'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/cn'
+import { VERDICT_CONFIG, verdictClasses } from '../../lib/verdict'
 
 type Props = {
   target: Role
@@ -11,26 +12,12 @@ type Props = {
   preferences: UserPreferences
 }
 
-const VERDICT_COLORS: Record<string, string> = {
-  'strong-move': 'text-green-700 bg-green-50 border-green-300',
-  'soft-move': 'text-emerald-700 bg-emerald-50 border-emerald-300',
-  'lateral': 'text-yellow-700 bg-yellow-50 border-yellow-300',
-  'soft-stay': 'text-orange-700 bg-orange-50 border-orange-300',
-  'strong-stay': 'text-red-700 bg-red-50 border-red-300',
-}
-
-const VERDICT_LABELS: Record<string, string> = {
-  'strong-move': 'Strong Move',
-  'soft-move': 'Soft Move',
-  'lateral': 'Lateral / Wash',
-  'soft-stay': 'Soft Stay',
-  'strong-stay': 'Strong Stay',
-}
-
 export function SensitivityPanel({ target, current, preferences }: Props) {
   const [attainmentPct, setAttainmentPct] = useState(target.comp.realisticAttainment * 100)
   const [baseDeltaPct, setBaseDeltaPct] = useState(0)
   const [compWeightOverride, setCompWeightOverride] = useState(preferences.weights.comp)
+  const [travelDays, setTravelDays] = useState(target.lifestyle.travelDaysPerMonth)
+  const [managerQuality, setManagerQuality] = useState(target.lifestyle.managerQuality)
 
   function buildAdjustedRole(): Role {
     const baseMultiplier = 1 + baseDeltaPct / 100
@@ -40,6 +27,11 @@ export function SensitivityPanel({ target, current, preferences }: Props) {
         ...target.comp,
         base: target.comp.base * baseMultiplier,
         realisticAttainment: attainmentPct / 100,
+      },
+      lifestyle: {
+        ...target.lifestyle,
+        travelDaysPerMonth: travelDays,
+        managerQuality,
       },
     }
   }
@@ -59,29 +51,34 @@ export function SensitivityPanel({ target, current, preferences }: Props) {
   const adjustedRole = buildAdjustedRole()
   const adjustedPrefs = buildAdjustedPrefs()
   const result = compareRoles(adjustedRole, current, adjustedPrefs)
-  const verdictCfg = VERDICT_COLORS[result.verdict] ?? ''
+  const verdictLabel = VERDICT_CONFIG[result.verdict].shortLabel
 
   function reset() {
     setAttainmentPct(target.comp.realisticAttainment * 100)
     setBaseDeltaPct(0)
     setCompWeightOverride(preferences.weights.comp)
+    setTravelDays(target.lifestyle.travelDaysPerMonth)
+    setManagerQuality(target.lifestyle.managerQuality)
   }
 
   const isDefault =
     Math.abs(attainmentPct - target.comp.realisticAttainment * 100) < 1 &&
     baseDeltaPct === 0 &&
-    compWeightOverride === preferences.weights.comp
+    compWeightOverride === preferences.weights.comp &&
+    travelDays === target.lifestyle.travelDaysPerMonth &&
+    managerQuality === target.lifestyle.managerQuality
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1">
         <h3 className="font-semibold text-slate-800">Sensitivity Analysis</h3>
         {!isDefault && (
           <Button variant="ghost" size="sm" onClick={reset}>Reset to actuals</Button>
         )}
       </div>
+      <p className="text-xs text-slate-500 mb-4">Drag any assumption to see how much it would take to flip the verdict.</p>
 
-      <div className="space-y-5 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5 mb-5">
         <Slider
           label="What if attainment came in at..."
           value={attainmentPct}
@@ -109,10 +106,28 @@ export function SensitivityPanel({ target, current, preferences }: Props) {
           step={5}
           formatValue={v => `${v}%`}
         />
+        <Slider
+          label="What if travel was..."
+          value={travelDays}
+          onChange={setTravelDays}
+          min={0}
+          max={20}
+          step={1}
+          formatValue={v => `${v} days/mo`}
+        />
+        <Slider
+          label="What if the manager rated..."
+          value={managerQuality}
+          onChange={setManagerQuality}
+          min={1}
+          max={10}
+          step={1}
+          formatValue={v => `${v}/10`}
+        />
       </div>
 
-      <div className={cn('rounded-lg border px-4 py-3 flex items-center justify-between', verdictCfg)}>
-        <span className="text-sm font-semibold">{VERDICT_LABELS[result.verdict]}</span>
+      <div className={cn('rounded-lg border px-4 py-3 flex items-center justify-between', verdictClasses(result.verdict))}>
+        <span className="text-sm font-semibold">{verdictLabel}</span>
         <span className="text-sm">
           Score delta: {result.scoreDelta >= 0 ? '+' : ''}{result.scoreDelta.toFixed(1)} pts
         </span>

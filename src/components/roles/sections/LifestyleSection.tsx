@@ -10,7 +10,7 @@ type Props = {
 export function LifestyleSection({ lifestyle, onChange }: Props) {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Input
           label="Travel Days/Month"
           type="number"

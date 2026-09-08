@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import type { Role } from '../../../lib/types'
+import type { Role, CommissionPlan } from '../../../lib/types'
 import { Input } from '../../ui/input'
 import { Select } from '../../ui/select'
 import { Slider } from '../../ui/slider'
 import { calcRealOTE, calcRiskAdjustedOTE } from '../../../lib/scoring'
+import { estimateAnnualCommission } from '../../../lib/comp'
 import { useAppStore } from '../../../store/useAppStore'
 import { formatCurrency } from '../../../lib/formatting'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -20,19 +21,6 @@ const COMMISSION_OPTIONS = [
   { value: 'capped', label: 'Capped' },
 ]
 
-function calcCommissionParams(params: Role['comp']['commissionParams']): number | null {
-  if (!params) return null
-  if (params.type === 'margin') {
-    const { avgDealSize = 0, avgGrossMarginPct = 0, marginRate = 0, expectedDealsPerYear = 1 } = params
-    return avgDealSize * (avgGrossMarginPct / 100) * (marginRate / 100) * expectedDealsPerYear
-  }
-  if (params.type === 'revenue') {
-    const { revenueQuota = 0, revenueRate = 0 } = params
-    return revenueQuota * (revenueRate / 100)
-  }
-  return null
-}
-
 function CommissionBuilder({
   comp, onChange,
 }: {
@@ -41,12 +29,13 @@ function CommissionBuilder({
 }) {
   const [open, setOpen] = useState(false)
   const { preferences } = useAppStore()
-  const params = comp.commissionParams
-  const annual = calcCommissionParams(params)
-  const type = params?.type ?? 'margin'
+  const plan = comp.commissionPlan
+  const annual = plan ? estimateAnnualCommission(plan) : null
+  const type = plan?.type === 'tiered' || plan?.type === 'flat' ? plan.type : (plan?.type ?? 'margin')
+  const isAdvancedType = type === 'tiered' || type === 'flat'
 
-  function setParams(patch: Partial<NonNullable<Role['comp']['commissionParams']>>) {
-    onChange({ commissionParams: { ...params, type, ...patch } as Role['comp']['commissionParams'] })
+  function setPlan(patch: Partial<CommissionPlan>) {
+    onChange({ commissionPlan: { period: 'annual', ...plan, type, ...patch } as CommissionPlan })
   }
 
   function useValue() {
@@ -71,85 +60,95 @@ function CommissionBuilder({
 
       {open && (
         <div className="px-4 pb-4 pt-3 space-y-3 bg-white border-t border-slate-100">
-          {/* Type selector */}
-          <div className="flex gap-1">
-            {(['margin', 'revenue'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setParams({ type: t })}
-                className={`px-3 py-1 rounded text-xs font-medium transition-colors border ${
-                  type === t
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {t === 'margin' ? 'Margin-Based' : 'Revenue-Based'}
-              </button>
-            ))}
-          </div>
+          {isAdvancedType ? (
+            <p className="text-xs text-slate-500">
+              This role's commission is set up as a <span className="font-medium text-slate-700 capitalize">{type}</span> plan
+              in the full Commission Calculator (open this role's Commission Calculator tab to edit tiers, draw, ramp, etc).
+              The estimate below reflects that plan at 100% attainment.
+            </p>
+          ) : (
+            <>
+              {/* Type selector */}
+              <div className="flex gap-1">
+                {(['margin', 'revenue'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setPlan({ type: t })}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors border ${
+                      type === t
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t === 'margin' ? 'Margin-Based' : 'Revenue-Based'}
+                  </button>
+                ))}
+              </div>
 
-          {type === 'margin' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Avg Deal Size</label>
-                <Input
-                  type="number"
-                  value={params?.avgDealSize ?? ''}
-                  onChange={e => setParams({ avgDealSize: Number(e.target.value) || 0 })}
-                  placeholder="1000000"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Avg Gross Margin %</label>
-                <Input
-                  type="number"
-                  value={params?.avgGrossMarginPct ?? ''}
-                  onChange={e => setParams({ avgGrossMarginPct: Number(e.target.value) || 0 })}
-                  placeholder="25"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Commission Rate on GM %</label>
-                <Input
-                  type="number"
-                  value={params?.marginRate ?? ''}
-                  onChange={e => setParams({ marginRate: Number(e.target.value) || 0 })}
-                  placeholder="3"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Expected Deals / Year</label>
-                <Input
-                  type="number"
-                  value={params?.expectedDealsPerYear ?? ''}
-                  onChange={e => setParams({ expectedDealsPerYear: Number(e.target.value) || 1 })}
-                  placeholder="12"
-                />
-              </div>
-            </div>
-          )}
+              {type === 'margin' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Avg Deal Size</label>
+                    <Input
+                      type="number"
+                      value={plan?.avgDealSize ?? ''}
+                      onChange={e => setPlan({ avgDealSize: Number(e.target.value) || 0 })}
+                      placeholder="1000000"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Avg Gross Margin %</label>
+                    <Input
+                      type="number"
+                      value={plan?.avgGrossMarginPct ?? ''}
+                      onChange={e => setPlan({ avgGrossMarginPct: Number(e.target.value) || 0 })}
+                      placeholder="25"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Commission Rate on GM %</label>
+                    <Input
+                      type="number"
+                      value={plan?.marginRate ?? ''}
+                      onChange={e => setPlan({ marginRate: Number(e.target.value) || 0 })}
+                      placeholder="3"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Expected Deals / Year</label>
+                    <Input
+                      type="number"
+                      value={plan?.expectedDealsPerYear ?? ''}
+                      onChange={e => setPlan({ expectedDealsPerYear: Number(e.target.value) || 1 })}
+                      placeholder="12"
+                    />
+                  </div>
+                </div>
+              )}
 
-          {type === 'revenue' && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Annual Revenue Quota</label>
-                <Input
-                  type="number"
-                  value={params?.revenueQuota ?? ''}
-                  onChange={e => setParams({ revenueQuota: Number(e.target.value) || 0 })}
-                  placeholder="1000000"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 block mb-1">Commission Rate %</label>
-                <Input
-                  type="number"
-                  value={params?.revenueRate ?? ''}
-                  onChange={e => setParams({ revenueRate: Number(e.target.value) || 0 })}
-                  placeholder="5"
-                />
-              </div>
-            </div>
+              {type === 'revenue' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Annual Revenue Quota</label>
+                    <Input
+                      type="number"
+                      value={plan?.revenueQuota ?? ''}
+                      onChange={e => setPlan({ revenueQuota: Number(e.target.value) || 0 })}
+                      placeholder="1000000"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 block mb-1">Commission Rate %</label>
+                    <Input
+                      type="number"
+                      value={plan?.revenueRate ?? ''}
+                      onChange={e => setPlan({ revenueRate: Number(e.target.value) || 0 })}
+                      placeholder="5"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {annual != null && annual > 0 && (
@@ -190,7 +189,7 @@ export function CompensationSection({ role, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium text-slate-700 block mb-1">Base Salary</label>
           {numField('base', comp.base)}

@@ -31,13 +31,28 @@ function careerScore(role: Role): number {
   return scale1to10to100(avg(titleTrajectory, scopeSize, skillDevelopment, companyPrestige, networkValue, exitOptionality))
 }
 
+// Lifestyle field normalizers — exported so narrative.ts can rank real-unit
+// deltas (travel days, hours, commute) on the same 0-10 scale the score uses.
+export function normalizeTravelDays(daysPerMonth: number): number {
+  return Math.max(0, Math.min(10, 10 - daysPerMonth / 3))
+}
+export function normalizeHours(hoursPerWeek: number): number {
+  return Math.max(0, Math.min(10, 10 - (hoursPerWeek - 40) / 4))
+}
+export function normalizeCommute(minutes: number): number {
+  return Math.max(0, Math.min(10, 10 - minutes / 12))
+}
+export function normalizeVacation(days: number): number {
+  return Math.min(10, days / 3)
+}
+
 function lifestyleScore(role: Role): number {
   const { flexibilityScore, managerQuality, teamCulture } = role.lifestyle
   // Travel (inverted — less travel = better lifestyle), hours (inverted), commute (inverted)
-  const travelNorm = Math.max(0, Math.min(10, 10 - role.lifestyle.travelDaysPerMonth / 3))
-  const hoursNorm = Math.max(0, Math.min(10, 10 - (role.lifestyle.hoursPerWeek - 40) / 4))
-  const commuteNorm = Math.max(0, Math.min(10, 10 - role.lifestyle.commuteMinutes / 12))
-  const vacNorm = Math.min(10, role.lifestyle.vacationDays / 3)
+  const travelNorm = normalizeTravelDays(role.lifestyle.travelDaysPerMonth)
+  const hoursNorm = normalizeHours(role.lifestyle.hoursPerWeek)
+  const commuteNorm = normalizeCommute(role.lifestyle.commuteMinutes)
+  const vacNorm = normalizeVacation(role.lifestyle.vacationDays)
   return scale1to10to100(avg(travelNorm, flexibilityScore, hoursNorm, commuteNorm, vacNorm, managerQuality, teamCulture))
 }
 

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   AppState, Role, Profile, ResumeJob, ResumeDraft, UserPreferences, View
 } from '../lib/types'
+import { migrateRole } from '../lib/types'
 import { getItem, setItem, clearAll, KEYS } from '../lib/storage'
 import { scheduleSave, deleteUserData } from '../lib/cloudSync'
 
@@ -24,7 +25,7 @@ const DEFAULT_PROFILE: Profile = {
 
 function loadState(): AppState {
   return {
-    roles: getItem<Role[]>(KEYS.roles) ?? [],
+    roles: (getItem<Role[]>(KEYS.roles) ?? []).map(migrateRole),
     activeComparison: null,
     profile: getItem<Profile>(KEYS.profile) ?? DEFAULT_PROFILE,
     resumeJobs: getItem<ResumeJob[]>(KEYS.resumeJobs) ?? [],
@@ -128,13 +129,14 @@ export const useAppStore = create<StoreState>((set, get) => {
     setCurrentUser: (id) => set({ currentUserId: id }),
 
     loadFromCloud: (data) => {
-      setItem(KEYS.roles, data.roles)
+      const roles = data.roles.map(migrateRole)
+      setItem(KEYS.roles, roles)
       setItem(KEYS.profile, data.profile)
       setItem(KEYS.resumeJobs, data.resumeJobs)
       setItem(KEYS.resumeDrafts, data.resumeDrafts)
       setItem(KEYS.preferences, data.preferences)
       set({
-        roles: data.roles,
+        roles,
         profile: data.profile,
         resumeJobs: data.resumeJobs,
         resumeDrafts: data.resumeDrafts,
@@ -304,7 +306,7 @@ export const useAppStore = create<StoreState>((set, get) => {
 
     importData: (json) => {
       const data = JSON.parse(json) as Partial<AppState>
-      const roles = data.roles ?? []
+      const roles = (data.roles ?? []).map(migrateRole)
       const profile = data.profile ?? DEFAULT_PROFILE
       const resumeJobs = data.resumeJobs ?? []
       const resumeDrafts = data.resumeDrafts ?? []
