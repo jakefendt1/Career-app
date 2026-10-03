@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 *.local
+
+# Personal headshots — the app stores the cropped photo in the profile, not the repo
+photos/

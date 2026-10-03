@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import type { ResumeDraft } from '../../lib/types'
 import { DraftCard } from './DraftCard'
+import { PasteImportDialog } from './PasteImportDialog'
+import { buildImportPatch, type ParsedResumeImport, type MatchedImportJob } from '../../lib/resume-import'
+import { useToast } from '../ui/toast'
 import { Button } from '../ui/button'
-import { Plus, History } from 'lucide-react'
+import { Plus, History, ClipboardPaste } from 'lucide-react'
 
 function createBlankDraft(): ResumeDraft {
   const now = new Date().toISOString()
@@ -25,6 +29,21 @@ interface DraftsListProps {
 
 export function DraftsList({ companyFilter }: DraftsListProps) {
   const { resumeDrafts, resumeJobs, addResumeDraft, setEditingDraftId, setView } = useAppStore()
+  const { toast } = useToast()
+  const [pasteOpen, setPasteOpen] = useState(false)
+
+  // New draft straight from a pasted RESUME_IMPORT block — paste, apply, then
+  // it's open in the editor ready for Download .docx.
+  function handleNewFromPaste(parsed: ParsedResumeImport, matched: MatchedImportJob[]) {
+    const blank = { ...createBlankDraft(), targetCompany: companyFilter ?? '' }
+    const { patch, summary } = buildImportPatch(blank, parsed, matched)
+    const draft = { ...blank, ...patch }
+    addResumeDraft(draft)
+    setPasteOpen(false)
+    setEditingDraftId(draft.id)
+    setView('resume-editor')
+    toast(summary)
+  }
 
   function handleNewDraft() {
     const draft = { ...createBlankDraft(), targetCompany: companyFilter ?? '' }
@@ -51,21 +70,31 @@ export function DraftsList({ companyFilter }: DraftsListProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h1 className="text-xl font-bold text-slate-900">
           {companyFilter ? `Resumes — ${companyFilter}` : 'Resume Drafts'}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {!companyFilter && (
             <Button variant="secondary" onClick={() => setView('work-history')}>
               <History size={15} /> Edit Work History
             </Button>
           )}
+          <Button variant="secondary" onClick={() => setPasteOpen(true)}>
+            <ClipboardPaste size={15} /> New from Paste
+          </Button>
           <Button onClick={handleNewDraft}>
             <Plus size={15} /> {newLabel}
           </Button>
         </div>
       </div>
+
+      <PasteImportDialog
+        open={pasteOpen}
+        onClose={() => setPasteOpen(false)}
+        onApply={handleNewFromPaste}
+        applyLabel="Create Draft"
+      />
 
       {resumeJobs.length === 0 && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">

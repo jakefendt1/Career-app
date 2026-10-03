@@ -10,9 +10,16 @@ import {
   TabStopType,
   TabStopPosition,
   BorderStyle,
+  ImageRun,
+  HorizontalPositionRelativeFrom,
+  HorizontalPositionAlign,
+  VerticalPositionRelativeFrom,
+  TextWrappingType,
+  TextWrappingSide,
 } from 'docx'
 import type { Profile, ResumeJob, ResumeDraft } from './types'
 import { sanitizeFilename } from './formatting'
+import { dataUrlToBytes } from './photo'
 
 const STYLES = {
   BLUE: '2B6CB0',
@@ -101,6 +108,28 @@ function skillRow(items: string[]): Paragraph {
   return new Paragraph({ spacing: { before: 40, after: 40 }, children })
 }
 
+// Headshot, top-right. Floats beside the name/contact block: sits slightly up
+// into the top margin and ends before the horizontal rule, so text wraps to
+// its left and the rule stays full width.
+const EMU_PER_INCH = 914400
+const PHOTO_PX = 86            // ~0.9" at 96 dpi
+const PHOTO_TOP_IN = 0.35      // from the top edge of the page
+
+function headshot(dataUrl: string): ImageRun {
+  return new ImageRun({
+    data: dataUrlToBytes(dataUrl),
+    transformation: { width: PHOTO_PX, height: PHOTO_PX },
+    altText: { name: 'Headshot', description: 'Profile photo', title: 'Headshot' },
+    floating: {
+      horizontalPosition: { relative: HorizontalPositionRelativeFrom.MARGIN, align: HorizontalPositionAlign.RIGHT },
+      verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: Math.round(PHOTO_TOP_IN * EMU_PER_INCH) },
+      wrap: { type: TextWrappingType.SQUARE, side: TextWrappingSide.LEFT },
+      margins: { left: Math.round(0.15 * EMU_PER_INCH) },
+      allowOverlap: false,
+    },
+  })
+}
+
 function chunk<T>(arr: T[], size: number): T[][] {
   const result: T[][] = []
   for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
@@ -122,7 +151,9 @@ export async function generateResume(
   const c: Paragraph[] = []
 
   // Name + credentials
-  const nameParts: TextRun[] = [
+  const nameParts: (TextRun | ImageRun)[] = []
+  if (profile.photoDataUrl && draft.includePhoto !== false) nameParts.push(headshot(profile.photoDataUrl))
+  nameParts.push(
     new TextRun({
       text: profile.name.toUpperCase() || 'YOUR NAME',
       font: STYLES.FONT,
@@ -130,7 +161,7 @@ export async function generateResume(
       bold: true,
       color: STYLES.BLUE,
     }),
-  ]
+  )
   if (profile.credentials) {
     nameParts.push(new TextRun({
       text: ', ' + profile.credentials,

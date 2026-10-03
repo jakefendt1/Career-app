@@ -140,6 +140,8 @@ export type Profile = {
   postalCode?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
+  /** Circle-cropped headshot as a JPEG data URL (see lib/photo.ts). */
+  photoDataUrl?: string;
   education: EducationEntry[];
   certifications: CertificationEntry[];
 };
@@ -182,6 +184,8 @@ export type ResumeDraft = {
   }>;
   skills: string;
   technicalAbilities: string;
+  /** Put the profile photo top-right on this resume. Undefined = on. */
+  includePhoto?: boolean;
 };
 
 export type AppState = {

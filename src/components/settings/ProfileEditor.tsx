@@ -4,10 +4,14 @@ import type { EducationEntry, CertificationEntry } from '../../lib/types'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Card, CardBody, CardHeader } from '../ui/card'
-import { Plus, Trash2, GripVertical } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Camera } from 'lucide-react'
+import { prepareProfilePhoto } from '../../lib/photo'
+import { useToast } from '../ui/toast'
 
 export function ProfileEditor() {
   const { profile, updateProfile } = useAppStore()
+  const { toast } = useToast()
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [newEdu, setNewEdu] = useState(false)
   const [newCert, setNewCert] = useState(false)
   const [eduForm, setEduForm] = useState({ degree: '', school: '', location: '', graduationYear: '' })
@@ -15,6 +19,22 @@ export function ProfileEditor() {
 
   function handleProfileChange(field: string, value: string) {
     updateProfile({ [field]: value } as Parameters<typeof updateProfile>[0])
+  }
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPhotoBusy(true)
+    try {
+      updateProfile({ photoDataUrl: await prepareProfilePhoto(file) })
+      toast('Photo saved — it will appear top-right on your resumes')
+    } catch (err) {
+      console.error(err)
+      toast('Could not read that image', 'error')
+    } finally {
+      setPhotoBusy(false)
+    }
   }
 
   function addEducation() {
@@ -54,6 +74,37 @@ export function ProfileEditor() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <h3 className="font-semibold text-slate-800">Resume Photo</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Cropped to a circle and placed top-right on your resume. Turn it off per draft with "Include photo".
+          </p>
+        </CardHeader>
+        <CardBody>
+          <div className="flex items-center gap-4">
+            {profile.photoDataUrl ? (
+              <img src={profile.photoDataUrl} alt="Resume headshot" className="w-20 h-20 rounded-full object-cover border border-slate-200" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center">
+                <Camera size={20} className="text-slate-400" />
+              </div>
+            )}
+            <div className="flex gap-2 flex-wrap">
+              <label className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium px-3 py-2 h-9 bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer transition-colors">
+                <Camera size={14} /> {photoBusy ? 'Processing…' : profile.photoDataUrl ? 'Replace photo' : 'Upload photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} disabled={photoBusy} />
+              </label>
+              {profile.photoDataUrl && (
+                <Button variant="ghost" onClick={() => updateProfile({ photoDataUrl: undefined })} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 size={14} /> Remove
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader>
           <h3 className="font-semibold text-slate-800">Personal Information</h3>

@@ -3,12 +3,14 @@ import { useAppStore } from '../../store/useAppStore'
 import { generateResume, getResumeFilename } from '../../lib/resume-generator'
 import { ResumeJobSection } from './ResumeJobSection'
 import { JobEditDialog } from './JobEditDialog'
+import { PasteImportDialog } from './PasteImportDialog'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Button } from '../ui/button'
-import { ArrowLeft, Download, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, RefreshCw, ClipboardPaste } from 'lucide-react'
 import { useToast } from '../ui/toast'
 import type { ResumeJob } from '../../lib/types'
+import { buildImportPatch, type ParsedResumeImport, type MatchedImportJob } from '../../lib/resume-import'
 
 export function DraftEditor() {
   const {
@@ -20,6 +22,10 @@ export function DraftEditor() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editingJobInline, setEditingJobInline] = useState<ResumeJob | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [pasteOpen, setPasteOpen] = useState(false)
+  // Bumped after an import so the uncontrolled (defaultValue) inputs remount
+  // and show the imported text instead of their stale initial values.
+  const [importNonce, setImportNonce] = useState(0)
 
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
@@ -71,6 +77,21 @@ export function DraftEditor() {
     toast('Loaded base from most recent draft')
   }
 
+  function handleImport(parsed: ParsedResumeImport, matched: MatchedImportJob[]) {
+    if (!draft) return
+    // A pending debounced patch would fire after the import and clobber it.
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    const { patch: importPatch, overwritesExisting, summary } = buildImportPatch(draft, parsed, matched)
+    if (overwritesExisting && !confirm('This will overwrite existing content in this draft. Continue?')) return
+    updateResumeDraft(draft.id, importPatch)
+    setImportNonce(n => n + 1)
+    setPasteOpen(false)
+    toast(summary)
+  }
+
   async function handleDownload() {
     if (!draft) return
     setGenerating(true)
@@ -111,8 +132,8 @@ export function DraftEditor() {
         </h1>
       </div>
 
-      <div className="space-y-5 mb-32">
-        <div className="grid grid-cols-2 gap-4 bg-white border border-slate-200 rounded-lg p-4">
+      <div key={importNonce} className="space-y-5 mb-32">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white border border-slate-200 rounded-lg p-4">
           <Input
             label="Target Company"
             defaultValue={draft.targetCompany}
@@ -125,6 +146,18 @@ export function DraftEditor() {
             onChange={e => debouncedPatch({ targetRole: e.target.value })}
             placeholder="Field Sales Engineer"
           />
+          {profile.photoDataUrl && (
+            <label className="sm:col-span-2 flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={draft.includePhoto !== false}
+                onChange={e => patch({ includePhoto: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <img src={profile.photoDataUrl} alt="" className="w-6 h-6 rounded-full" />
+              Include photo on this resume
+            </label>
+          )}
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg p-4">
@@ -176,13 +209,20 @@ export function DraftEditor() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3 flex items-center justify-between z-40">
-        <Button variant="secondary" onClick={handleLoadBase}>
-          <RefreshCw size={14} /> Load Base
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleLoadBase}>
+            <RefreshCw size={14} /> Load Base
+          </Button>
+          <Button variant="secondary" onClick={() => setPasteOpen(true)}>
+            <ClipboardPaste size={14} /> Paste Import
+          </Button>
+        </div>
         <Button onClick={handleDownload} disabled={generating}>
           <Download size={14} /> {generating ? 'Generating...' : 'Download .docx'}
         </Button>
       </div>
+
+      <PasteImportDialog open={pasteOpen} onClose={() => setPasteOpen(false)} onApply={handleImport} />
 
       {editingJobInline && (
         <JobEditDialog
