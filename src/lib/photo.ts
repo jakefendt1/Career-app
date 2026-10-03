@@ -25,10 +25,22 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
 export async function prepareProfilePhoto(file: File): Promise<string> {
+  if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+    throw new Error("iPhone HEIC photos aren't supported by browsers. Export it as JPG or PNG first.")
+  }
+  if (file.type && !file.type.startsWith('image/')) throw new Error("That file isn't an image.")
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error('That image is over 25 MB. Use a smaller copy.')
+  if (file.size === 0) throw new Error('That file is empty.')
+
   const url = URL.createObjectURL(file)
   try {
     const img = await loadImage(url)
+    if (img.naturalWidth < 80 || img.naturalHeight < 80) {
+      throw new Error('That image is too small. Use one at least 300 × 300 pixels.')
+    }
     const { x, y, side } = portraitSquare(img.naturalWidth, img.naturalHeight)
 
     const canvas = document.createElement('canvas')

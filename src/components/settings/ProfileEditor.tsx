@@ -31,7 +31,7 @@ export function ProfileEditor() {
       toast('Photo saved — it will appear top-right on your resumes')
     } catch (err) {
       console.error(err)
-      toast('Could not read that image', 'error')
+      toast(err instanceof Error ? err.message : 'Could not read that image', 'error')
     } finally {
       setPhotoBusy(false)
     }

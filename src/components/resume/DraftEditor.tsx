@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import { generateResume, getResumeFilename } from '../../lib/resume-generator'
+import { generateResume, getResumeFilename, preflightResume } from '../../lib/resume-generator'
 import { ResumeJobSection } from './ResumeJobSection'
 import { JobEditDialog } from './JobEditDialog'
 import { PasteImportDialog } from './PasteImportDialog'
@@ -9,8 +9,15 @@ import { Textarea } from '../ui/textarea'
 import { Button } from '../ui/button'
 import { ArrowLeft, Download, RefreshCw, ClipboardPaste } from 'lucide-react'
 import { useToast } from '../ui/toast'
-import type { ResumeJob } from '../../lib/types'
+import type { ResumeJob, ResumeDraft } from '../../lib/types'
 import { buildImportPatch, type ParsedResumeImport, type MatchedImportJob } from '../../lib/resume-import'
+
+type ScalarField = 'targetCompany' | 'targetRole' | 'profileParagraph' | 'skills' | 'technicalAbilities'
+type PendingEdits = {
+  fields: Partial<Pick<ResumeDraft, ScalarField>>
+  jobs: Record<string, { summary?: string; bullets?: string }>
+}
+const SAVE_DELAY_MS = 500
 
 export function DraftEditor() {
   const {
@@ -19,104 +26,162 @@ export function DraftEditor() {
   } = useAppStore()
   const { toast } = useToast()
   const draft = resumeDrafts.find(d => d.id === editingDraftId)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editingJobInline, setEditingJobInline] = useState<ResumeJob | null>(null)
   const [generating, setGenerating] = useState(false)
   const [pasteOpen, setPasteOpen] = useState(false)
-  // Bumped after an import so the uncontrolled (defaultValue) inputs remount
-  // and show the imported text instead of their stale initial values.
+  // Bumped whenever the draft is written from outside the inputs (import,
+  // Load Base) so the uncontrolled (defaultValue) inputs remount with it.
   const [importNonce, setImportNonce] = useState(0)
 
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // Edits are batched, not replaced: every keystroke merges into `pending`,
+  // and one save writes them all against the *latest* stored draft. (The old
+  // single-timer version dropped an edit whenever a second field was touched
+  // within 500 ms, and Download/Back discarded the last unsaved keystrokes.)
+  const pendingRef = useRef<PendingEdits>({ fields: {}, jobs: {} })
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftIdRef = useRef(editingDraftId)
+  draftIdRef.current = editingDraftId
+
+  const flush = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    const id = draftIdRef.current
+    const { fields, jobs } = pendingRef.current
+    pendingRef.current = { fields: {}, jobs: {} }
+    if (!id || (Object.keys(fields).length === 0 && Object.keys(jobs).length === 0)) return
+
+    const latest = useAppStore.getState().resumeDrafts.find(d => d.id === id)
+    if (!latest) return
+    const update: Partial<ResumeDraft> = { ...fields }
+    if (Object.keys(jobs).length > 0) {
+      const jobContent = { ...latest.jobContent }
+      for (const [jobId, change] of Object.entries(jobs)) {
+        jobContent[jobId] = { ...(jobContent[jobId] ?? { summary: '', bullets: '' }), ...change }
+      }
+      update.jobContent = jobContent
+    }
+    useAppStore.getState().updateResumeDraft(id, update)
   }, [])
 
-  if (!draft) return <div className="text-slate-400 py-10 text-center">Draft not found.</div>
+  // Save whatever is pending when leaving the editor or closing the tab.
+  useEffect(() => {
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.removeEventListener('beforeunload', flush)
+      flush()
+    }
+  }, [flush])
 
-  function patch(update: Parameters<typeof updateResumeDraft>[1]) {
-    if (!draft) return
-    updateResumeDraft(draft.id, update)
+  if (!draft) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-slate-500 mb-4">This draft no longer exists.</p>
+        <Button variant="secondary" onClick={() => setView('resume')}><ArrowLeft size={14} /> Back to Drafts</Button>
+      </div>
+    )
   }
 
-  function debouncedPatch(update: Parameters<typeof updateResumeDraft>[1]) {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => patch(update), 500)
+  function schedule() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(flush, SAVE_DELAY_MS)
+  }
+
+  function queueField(update: Partial<Pick<ResumeDraft, ScalarField>>) {
+    Object.assign(pendingRef.current.fields, update)
+    schedule()
   }
 
   function handleJobContentChange(jobId: string, change: { summary?: string; bullets?: string }) {
-    if (!draft) return
-    const current = draft.jobContent[jobId] ?? { summary: '', bullets: '' }
-    debouncedPatch({
-      jobContent: {
-        ...draft.jobContent,
-        [jobId]: { ...current, ...change },
-      },
-    })
+    pendingRef.current.jobs[jobId] = { ...pendingRef.current.jobs[jobId], ...change }
+    schedule()
+  }
+
+  /** Save pending edits, then return the freshly stored draft. */
+  function flushAndRead(): ResumeDraft | undefined {
+    flush()
+    return useAppStore.getState().resumeDrafts.find(d => d.id === draftIdRef.current)
   }
 
   function handleLoadBase() {
-    if (!draft) return
-    if (Object.values(draft.jobContent).some(c => c.bullets || c.summary) || draft.profileParagraph || draft.skills) {
-      if (!confirm('This will overwrite your current draft content. Continue?')) return
-    }
+    const current = flushAndRead()
+    if (!current) return
 
-    // Find the most recently updated OTHER draft with non-empty content
-    const others = resumeDrafts
-      .filter(d => d.id !== draft.id)
+    // Most recently updated other draft that actually has content.
+    const base = resumeDrafts
+      .filter(d => d.id !== current.id)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .find(d => d.profileParagraph.trim() || d.skills.trim() || d.technicalAbilities.trim() ||
+        Object.values(d.jobContent).some(c => c.summary?.trim() || c.bullets?.trim()))
+    if (!base) { toast('No other draft with content to load from', 'info'); return }
 
-    const base = others[0]
-    if (!base) { toast('No other drafts to load from', 'info'); return }
+    // Fill only what's empty here; Load Base never overwrites your edits.
+    const jobContent = { ...current.jobContent }
+    let filled = 0
+    for (const [jobId, c] of Object.entries(base.jobContent)) {
+      const mine = jobContent[jobId]
+      if (!mine || (!mine.summary?.trim() && !mine.bullets?.trim())) {
+        if (c.summary?.trim() || c.bullets?.trim()) { jobContent[jobId] = { ...c }; filled++ }
+      }
+    }
+    const update: Partial<ResumeDraft> = { jobContent }
+    for (const f of ['profileParagraph', 'skills', 'technicalAbilities'] as const) {
+      if (!current[f].trim() && base[f].trim()) { update[f] = base[f]; filled++ }
+    }
+    if (filled === 0) { toast('Nothing to load, every section already has content', 'info'); return }
 
-    patch({
-      profileParagraph: base.profileParagraph || draft.profileParagraph,
-      skills: base.skills || draft.skills,
-      technicalAbilities: base.technicalAbilities || draft.technicalAbilities,
-      jobContent: { ...base.jobContent, ...draft.jobContent },
-    })
-    toast('Loaded base from most recent draft')
+    updateResumeDraft(current.id, update)
+    setImportNonce(n => n + 1)
+    toast(`Filled ${filled} empty section${filled === 1 ? '' : 's'} from "${base.targetCompany || 'Untitled'}"`)
   }
 
   function handleImport(parsed: ParsedResumeImport, matched: MatchedImportJob[]) {
-    if (!draft) return
-    // A pending debounced patch would fire after the import and clobber it.
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-      debounceRef.current = null
-    }
-    const { patch: importPatch, overwritesExisting, summary } = buildImportPatch(draft, parsed, matched)
+    const current = flushAndRead()
+    if (!current) return
+    const { patch: importPatch, overwritesExisting, summary } = buildImportPatch(current, parsed, matched)
     if (overwritesExisting && !confirm('This will overwrite existing content in this draft. Continue?')) return
-    updateResumeDraft(draft.id, importPatch)
+    updateResumeDraft(current.id, importPatch)
     setImportNonce(n => n + 1)
     setPasteOpen(false)
     toast(summary)
   }
 
   async function handleDownload() {
-    if (!draft) return
+    const current = flushAndRead()
+    if (!current) return
+    const sorted = [...resumeJobs].sort((a, b) => a.order - b.order)
+
+    const { errors, warnings } = preflightResume(profile, sorted, current)
+    if (errors.length > 0) { toast(errors[0]!, 'error'); return }
+    if (warnings.length > 0 && !confirm(`Before you download:\n\n- ${warnings.join('\n- ')}\n\nDownload anyway?`)) return
+
     setGenerating(true)
     try {
-      // Flush any pending debounced patches first
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = null
-      }
-      const sorted = [...resumeJobs].sort((a, b) => a.order - b.order)
-      const blob = await generateResume(profile, sorted, draft)
-      const filename = getResumeFilename(profile, draft)
+      const blob = await generateResume(profile, sorted, current)
+      const filename = getResumeFilename(profile, current)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = filename
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
+      // Revoke after the browser has started the download; some browsers
+      // cancel it if the URL is revoked synchronously.
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
       toast(`Downloaded: ${filename}`)
     } catch (err) {
       console.error(err)
-      toast('Failed to generate resume', 'error')
+      toast(`Could not generate the resume: ${err instanceof Error ? err.message : 'unknown error'}`, 'error')
     } finally {
       setGenerating(false)
     }
+  }
+
+  function patch(update: Partial<ResumeDraft>) {
+    flush()
+    updateResumeDraft(draft!.id, update)
   }
 
   const sortedJobs = [...resumeJobs].sort((a, b) => a.order - b.order)
@@ -124,7 +189,7 @@ export function DraftEditor() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => setView('resume')}>
+        <Button variant="ghost" size="sm" onClick={() => { flush(); setView('resume') }}>
           <ArrowLeft size={14} /> Drafts
         </Button>
         <h1 className="text-lg font-bold text-slate-900 flex-1 truncate">
@@ -137,13 +202,13 @@ export function DraftEditor() {
           <Input
             label="Target Company"
             defaultValue={draft.targetCompany}
-            onChange={e => debouncedPatch({ targetCompany: e.target.value })}
+            onChange={e => queueField({ targetCompany: e.target.value })}
             placeholder="Doosan Robotics"
           />
           <Input
             label="Target Role"
             defaultValue={draft.targetRole}
-            onChange={e => debouncedPatch({ targetRole: e.target.value })}
+            onChange={e => queueField({ targetRole: e.target.value })}
             placeholder="Field Sales Engineer"
           />
           {profile.photoDataUrl && (
@@ -164,7 +229,7 @@ export function DraftEditor() {
           <Textarea
             label="Profile Paragraph"
             defaultValue={draft.profileParagraph}
-            onChange={e => debouncedPatch({ profileParagraph: e.target.value })}
+            onChange={e => queueField({ profileParagraph: e.target.value })}
             placeholder="Paste your tailored 2-3 sentence summary here..."
             className="min-h-[100px]"
             hint="This appears at the top of the resume under your name."
@@ -194,14 +259,14 @@ export function DraftEditor() {
           <Textarea
             label="Skills (one per line)"
             defaultValue={draft.skills}
-            onChange={e => debouncedPatch({ skills: e.target.value })}
+            onChange={e => queueField({ skills: e.target.value })}
             placeholder={`Consultative Sales & Solution Selling\nAccount Management\n...`}
             className="min-h-[140px]"
           />
           <Textarea
             label="Technical Abilities (one per line)"
             defaultValue={draft.technicalAbilities}
-            onChange={e => debouncedPatch({ technicalAbilities: e.target.value })}
+            onChange={e => queueField({ technicalAbilities: e.target.value })}
             placeholder={`Industrial Automation & Robotics\nCAD / SolidWorks\n...`}
             className="min-h-[140px]"
           />

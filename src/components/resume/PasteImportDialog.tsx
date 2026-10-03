@@ -49,6 +49,18 @@ export function PasteImportDialog({ open, onClose, onApply, applyLabel = 'Apply 
 
   const warnings = [...(parsed?.warnings ?? []), ...(matchResult?.warnings ?? [])]
 
+  // Manually assigning a block to a job that's already filled replaces it.
+  const autoMatchedIds = new Set((matchResult?.matched ?? []).map(m => m.jobId))
+  const seenAssigned = new Set<string>()
+  for (const m of assignedFromUnmatched) {
+    if (autoMatchedIds.has(m.jobId) || seenAssigned.has(m.jobId)) {
+      warnings.push(`${jobLabel(m.jobId)} is getting two blocks; the last one wins.`)
+    }
+    seenAssigned.add(m.jobId)
+  }
+
+  const looksLikeWrongFormat = !!parsed && !hasContent && parsed.jobs.length === 0
+
   function reset() {
     setText('')
     setAssignments({})
@@ -80,7 +92,22 @@ export function PasteImportDialog({ open, onClose, onApply, applyLabel = 'Apply 
           autoFocus
         />
 
-        {parsed && (
+        {looksLikeWrongFormat && (
+          <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Couldn't find any resume sections in that text. Paste the block that starts with
+            <code className="mx-1 text-xs">&lt;&lt;&lt;RESUME_IMPORT v1&gt;&gt;&gt;</code>, or at least
+            <code className="mx-1 text-xs">[PROFILE]</code>/<code className="mx-1 text-xs">[JOB: …]</code>/<code className="mx-1 text-xs">[SKILLS]</code> headers.
+          </p>
+        )}
+
+        {parsed && !looksLikeWrongFormat && resumeJobs.length === 0 && parsed.jobs.length > 0 && (
+          <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Your work history is empty, so job bullets have nowhere to go. Add your jobs under
+            Resume Builder → Edit Work History first; profile and skills will still import.
+          </p>
+        )}
+
+        {parsed && !looksLikeWrongFormat && (
           <div className="mt-4 space-y-3 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <PreviewRow label="Target company" value={parsed.targetCompany} />

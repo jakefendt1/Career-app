@@ -8,7 +8,6 @@ import {
   LevelFormat,
   ExternalHyperlink,
   TabStopType,
-  TabStopPosition,
   BorderStyle,
   ImageRun,
   HorizontalPositionRelativeFrom,
@@ -20,6 +19,12 @@ import {
 import type { Profile, ResumeJob, ResumeDraft } from './types'
 import { sanitizeFilename } from './formatting'
 import { dataUrlToBytes } from './photo'
+import { splitBullets, splitListItems, packIntoRows } from './resume-text'
+
+// Letter page, 0.75" side margins → 7.0" (504pt / 10080 twips) of text width.
+const PAGE = { WIDTH: 12240, HEIGHT: 15840, MARGIN_X: 1080, MARGIN_Y: 720 }
+const TEXT_WIDTH_TWIPS = PAGE.WIDTH - 2 * PAGE.MARGIN_X
+const TEXT_WIDTH_PT = TEXT_WIDTH_TWIPS / 20
 
 const STYLES = {
   BLUE: '2B6CB0',
@@ -74,7 +79,7 @@ function jobHeader(title: string, company: string, location: string, dates: stri
   return [
     new Paragraph({
       spacing: { before: 200, after: 0 },
-      tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+      tabStops: [{ type: TabStopType.RIGHT, position: TEXT_WIDTH_TWIPS }],
       children: [
         new TextRun({ text: title, font: STYLES.FONT, size: STYLES.HEAD_SIZE, bold: true, color: STYLES.DARK }),
         new TextRun({ text: '\t' + dates, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.GRAY }),
@@ -97,12 +102,23 @@ function roleSummary(text: string): Paragraph {
   })
 }
 
+const SKILL_SEPARATOR = '   •   '
+
+/** Skills/technical abilities: as many whole items per line as actually fit,
+ *  measured in Calibri, so nothing wraps mid-row and short items share a line.
+ *  6% headroom absorbs small metric differences between our table and Word. */
+function skillRows(text: string): Paragraph[] {
+  const items = splitListItems(text)
+  const fontPt = STYLES.BODY_SIZE / 2
+  return packIntoRows(items, TEXT_WIDTH_PT * 0.94, fontPt, SKILL_SEPARATOR).map(skillRow)
+}
+
 function skillRow(items: string[]): Paragraph {
   const children: (TextRun)[] = []
   items.forEach((item, i) => {
     children.push(new TextRun({ text: item, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.DARK }))
     if (i < items.length - 1) {
-      children.push(new TextRun({ text: '   •   ', font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.RULE }))
+      children.push(new TextRun({ text: SKILL_SEPARATOR, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.RULE }))
     }
   })
   return new Paragraph({ spacing: { before: 40, after: 40 }, children })
@@ -130,17 +146,17 @@ function headshot(dataUrl: string): ImageRun {
   })
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const result: T[][] = []
-  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
-  return result
+/** "2019 – 2022", "2022 – Present", or just whichever side exists. */
+export function formatDateRange(start: string, end: string): string {
+  const a = (start ?? '').trim()
+  const b = (end ?? '').trim()
+  return a && b ? `${a} – ${b}` : a || b
 }
 
-function getLines(text: string): string[] {
-  return text
-    .split('\n')
-    .map(l => l.replace(/^[-•*]\s*/, '').trim())
-    .filter(l => l.length > 0)
+/** "  —  School, City  |  Date" with blank parts dropped. */
+function joinDetail(parts: string[]): string {
+  const kept = parts.map(p => (p ?? '').trim()).filter(Boolean)
+  return kept.length ? '  —  ' + kept.join('  |  ') : ''
 }
 
 export async function generateResume(
@@ -152,7 +168,10 @@ export async function generateResume(
 
   // Name + credentials
   const nameParts: (TextRun | ImageRun)[] = []
-  if (profile.photoDataUrl && draft.includePhoto !== false) nameParts.push(headshot(profile.photoDataUrl))
+  if (profile.photoDataUrl && draft.includePhoto !== false) {
+    // A damaged photo shouldn't sink the whole resume — skip it instead.
+    try { nameParts.push(headshot(profile.photoDataUrl)) } catch (err) { console.warn('Skipping resume photo:', err) }
+  }
   nameParts.push(
     new TextRun({
       text: profile.name.toUpperCase() || 'YOUR NAME',
@@ -207,39 +226,46 @@ export async function generateResume(
   }))
 
   // Profile section
-  c.push(sHead('Profile'))
-  c.push(new Paragraph({
-    spacing: { before: 60, after: 100 },
-    children: [new TextRun({ text: draft.profileParagraph, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.DARK })],
-  }))
+  const profileText = draft.profileParagraph.replace(/\s+/g, ' ').trim()
+  if (profileText) {
+    c.push(sHead('Profile'))
+    c.push(new Paragraph({
+      spacing: { before: 60, after: 100 },
+      children: [new TextRun({ text: profileText, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.DARK })],
+    }))
+  }
 
   // Work History
-  c.push(sHead('Work History'))
-
+  const workHistory: Paragraph[] = []
   const sortedJobs = [...resumeJobs].sort((a, b) => a.order - b.order)
   for (const job of sortedJobs) {
     const content = draft.jobContent[job.id]
     if (!content) continue
-    const bullets = getLines(content.bullets)
-    if (!content.summary && bullets.length === 0) continue
+    const summary = (content.summary ?? '').replace(/\s+/g, ' ').trim()
+    const bullets = splitBullets(content.bullets ?? '')
+    if (!summary && bullets.length === 0) continue
 
-    c.push(...jobHeader(job.title, job.company, job.location, `${job.startDate} – ${job.endDate}`))
-    if (content.summary) c.push(roleSummary(content.summary))
-    bullets.forEach(b => c.push(bul(b)))
+    workHistory.push(...jobHeader(job.title, job.company, job.location, formatDateRange(job.startDate, job.endDate)))
+    if (summary) workHistory.push(roleSummary(summary))
+    bullets.forEach(b => workHistory.push(bul(b)))
+  }
+  if (workHistory.length > 0) {
+    c.push(sHead('Work History'))
+    c.push(...workHistory)
   }
 
   // Skills
-  const skills = getLines(draft.skills)
+  const skills = skillRows(draft.skills ?? '')
   if (skills.length > 0) {
     c.push(sHead('Skills'))
-    chunk(skills, 3).forEach(row => c.push(skillRow(row)))
+    c.push(...skills)
   }
 
   // Technical Abilities
-  const techAbilities = getLines(draft.technicalAbilities)
+  const techAbilities = skillRows(draft.technicalAbilities ?? '')
   if (techAbilities.length > 0) {
     c.push(sHead('Technical Abilities'))
-    chunk(techAbilities, 3).forEach(row => c.push(skillRow(row)))
+    c.push(...techAbilities)
   }
 
   // Education
@@ -250,7 +276,7 @@ export async function generateResume(
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: edu.degree, font: STYLES.FONT, size: STYLES.BODY_SIZE, bold: true, color: STYLES.DARK }),
-          new TextRun({ text: '  —  ' + edu.school + ', ' + edu.location, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.GRAY }),
+          new TextRun({ text: joinDetail([[edu.school, edu.location].filter(Boolean).join(', ')]), font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.GRAY }),
         ],
       }))
     }
@@ -264,7 +290,7 @@ export async function generateResume(
         spacing: { before: 40, after: 40 },
         children: [
           new TextRun({ text: cert.name, font: STYLES.FONT, size: STYLES.BODY_SIZE, bold: true, color: STYLES.DARK }),
-          new TextRun({ text: '  —  ' + cert.issuer + '  |  ' + cert.date, font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.GRAY }),
+          new TextRun({ text: joinDetail([cert.issuer, cert.date]), font: STYLES.FONT, size: STYLES.BODY_SIZE, color: STYLES.GRAY }),
         ],
       }))
     }
@@ -284,8 +310,8 @@ export async function generateResume(
     sections: [{
       properties: {
         page: {
-          size: { width: 12240, height: 15840 },
-          margin: { top: 720, bottom: 720, left: 1080, right: 1080 },
+          size: { width: PAGE.WIDTH, height: PAGE.HEIGHT },
+          margin: { top: PAGE.MARGIN_Y, bottom: PAGE.MARGIN_Y, left: PAGE.MARGIN_X, right: PAGE.MARGIN_X },
         },
       },
       footers: {
@@ -310,4 +336,53 @@ export function getResumeFilename(profile: Profile, draft: ResumeDraft): string 
   const company = sanitizeFilename(draft.targetCompany || 'Tailored')
   const role = sanitizeFilename(draft.targetRole || 'Resume')
   return [first, last, company, role].filter(Boolean).join('_') + '.docx'
+}
+
+// ── Pre-download checks ──────────────────────────────────────────────────────
+// Errors block the download (nothing useful would come out); warnings are
+// shown so the user can fix them or download anyway.
+
+export type ResumePreflight = { errors: string[]; warnings: string[] }
+
+export function preflightResume(profile: Profile, resumeJobs: ResumeJob[], draft: ResumeDraft): ResumePreflight {
+  const errors: string[] = []
+  const warnings: string[] = []
+
+  const jobIds = new Set(resumeJobs.map(j => j.id))
+  const filledJobs = resumeJobs.filter(j => {
+    const c = draft.jobContent[j.id]
+    return c && ((c.summary ?? '').trim() || splitBullets(c.bullets ?? '').length > 0)
+  })
+  const orphaned = Object.entries(draft.jobContent).filter(([id, c]) =>
+    !jobIds.has(id) && ((c.summary ?? '').trim() || (c.bullets ?? '').trim()))
+
+  const hasProfile = draft.profileParagraph.trim().length > 0
+  const skills = splitListItems(draft.skills ?? '')
+  const tech = splitListItems(draft.technicalAbilities ?? '')
+
+  if (!hasProfile && filledJobs.length === 0 && skills.length === 0 && tech.length === 0) {
+    errors.push('This draft is empty — add content or use Paste Import first.')
+  }
+  if (!profile.name.trim()) warnings.push('Your name is blank (Settings → Profile), so the resume will say "YOUR NAME".')
+  if (!profile.email.trim() && !profile.phone.trim()) warnings.push('No email or phone in your profile — the contact line will be empty.')
+  if (resumeJobs.length === 0) warnings.push('Your work history is empty, so no jobs can appear on the resume.')
+  else if (filledJobs.length === 0) warnings.push('No job has a summary or bullets yet — Work History will be left off.')
+  if (orphaned.length > 0) {
+    warnings.push(`${orphaned.length} job${orphaned.length === 1 ? ' has' : 's have'} content but ${orphaned.length === 1 ? 'is' : 'are'} no longer in your work history, so ${orphaned.length === 1 ? 'it' : 'they'} won't print.`)
+  }
+  if (!hasProfile) warnings.push('Profile paragraph is empty — the Profile section will be left off.')
+
+  for (const job of filledJobs) {
+    for (const b of splitBullets(draft.jobContent[job.id]!.bullets ?? '')) {
+      if (b.length > 320) {
+        warnings.push(`A ${job.company} bullet is very long (${b.length} characters) — it may be two bullets pasted together.`)
+        break
+      }
+    }
+  }
+
+  const rawSkillLines = (draft.skills ?? '').split('\n').filter(l => l.trim()).length
+  if (rawSkillLines > skills.length && skills.length > 0) warnings.push('Duplicate skills were found and will only print once.')
+
+  return { errors, warnings }
 }

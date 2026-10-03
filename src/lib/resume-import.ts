@@ -4,6 +4,7 @@
 // Spec: ResumePasteImport_Spec.md
 
 import type { ResumeJob, ResumeDraft } from './types'
+import { cleanInline, stripListGlyph, splitListItems } from './resume-text'
 
 export type ImportedJob = { company: string; title?: string; summary?: string; bullets: string }
 
@@ -17,22 +18,6 @@ export type ParsedResumeImport = {
   warnings: string[]
 }
 
-// Glyphs need trailing whitespace (except •) so "3.5x growth" or "-5% cost"
-// keep their leading characters.
-const BULLET_GLYPH = /^\s*(?:[-*–—]\s+|•\s*|\d+[.)]\s+)/
-
-function cleanLine(line: string): string {
-  return line.replace(/\*\*|__/g, '').trimEnd()
-}
-
-function stripGlyph(line: string): string {
-  return line.replace(BULLET_GLYPH, '').trim()
-}
-
-function nonEmpty(lines: string[]): string[] {
-  return lines.map(l => l.trim()).filter(l => l.length > 0)
-}
-
 type Section =
   | { kind: 'preamble' }
   | { kind: 'profile' }
@@ -41,63 +26,99 @@ type Section =
   | { kind: 'job'; company: string; title?: string }
   | { kind: 'unknown'; name: string }
 
-function parseHeader(line: string): Section | null {
-  const m = line.trim().match(/^\[\s*([^\]]+?)\s*\]$/)
-  if (!m) return null
-  const inner = m[1]!
-  const job = inner.match(/^job\s*:\s*(.+)$/i)
-  if (job) {
-    const [company, title] = job[1]!.split('|').map(s => s.trim())
-    return { kind: 'job', company: company!, title: title || undefined }
-  }
-  const name = inner.toLowerCase().replace(/\s+/g, ' ')
-  if (name === 'profile') return { kind: 'profile' }
-  if (name === 'skills') return { kind: 'skills' }
-  if (name === 'technical abilities' || name === 'technical' || name === 'tech abilities') return { kind: 'tech' }
-  return { kind: 'unknown', name: inner }
+const KNOWN_SECTIONS: Record<string, Section['kind']> = {
+  'profile': 'profile',
+  'summary': 'profile',
+  'professional summary': 'profile',
+  'skills': 'skills',
+  'core skills': 'skills',
+  'technical abilities': 'tech',
+  'technical': 'tech',
+  'tech abilities': 'tech',
+  'technical skills': 'tech',
 }
+
+/** Recognize a section header. Canonical form is "[SKILLS]" / "[JOB: X]",
+ *  but Markdown headings ("## Skills"), bold, and a trailing colon are
+ *  tolerated for known names. Bare (unbracketed) lines only count when they
+ *  are exactly a known section name, so ordinary text is never mistaken. */
+function parseHeader(rawLine: string): Section | null {
+  const line = rawLine.trim().replace(/^#{1,6}\s*/, '')
+  const bracketed = line.match(/^\[\s*([^\]]+?)\s*\]\s*:?$/)
+  const inner = bracketed ? bracketed[1]! : line.replace(/:$/, '').trim()
+
+  const job = inner.match(/^job\s*:\s*(.+)$/i)
+  if (job && (bracketed || rawLine.trim().startsWith('#'))) {
+    const [company, title] = job[1]!.split('|').map(x => x.trim())
+    if (!company) return null
+    return { kind: 'job', company, title: title || undefined }
+  }
+
+  const name = inner.toLowerCase().replace(/\s+/g, ' ')
+  const kind = KNOWN_SECTIONS[name]
+  if (kind && kind !== 'job' && kind !== 'unknown' && kind !== 'preamble') return { kind } as Section
+  if (bracketed && !/^job\b/i.test(inner)) return { kind: 'unknown', name: inner }
+  return null
+}
+
+const TARGET_KV = /^\s*target[_ ]?(company|role)\s*:\s*(.*)$/i
+const SUMMARY_KV = /^summary\s*:\s*(.*)$/i
+const HAS_GLYPH = /^\s*(?:[-*–—]\s+|[•·▪◦‣]\s*|\d+[.)]\s+)/
 
 export function parseResumeImport(text: string): ParsedResumeImport {
   let body = text.replace(/\r\n?/g, '\n')
 
-  const start = body.search(/<<<\s*RESUME_IMPORT[^>]*>>>/i)
-  if (start >= 0) body = body.slice(start).replace(/^<<<[^>]*>>>/, '')
+  const prelude: string[] = []
+  const startMatch = body.match(/<<<\s*RESUME_IMPORT([^>]*)>>>/i)
+  if (startMatch) {
+    body = body.slice(startMatch.index! + startMatch[0].length)
+    const version = startMatch[1]!.trim().toLowerCase()
+    if (version && version !== 'v1') prelude.push(`Block says "${version}" — parsed it as v1`)
+  }
   const end = body.search(/<<<\s*END\s*>>>/i)
   if (end >= 0) body = body.slice(0, end)
 
-  const lines = body.split('\n').filter(l => !/^\s*```/.test(l)).map(cleanLine)
+  const lines = body
+    .split('\n')
+    .filter(l => !/^\s*```/.test(l))
+    .map(l => cleanInline(l))
 
-  const result: ParsedResumeImport = { jobs: [], warnings: [] }
+  const result: ParsedResumeImport = { jobs: [], warnings: prelude }
   let section: Section = { kind: 'preamble' }
   let buffer: string[] = []
+
+  function setList(field: 'skills' | 'technicalAbilities', label: string) {
+    const items = splitListItems(buffer.join('\n'))
+    if (result[field] !== undefined) {
+      result.warnings.push(`${label} appeared twice — combined them`)
+      const merged = splitListItems([result[field], ...items].join('\n'))
+      result[field] = merged.join('\n')
+    } else {
+      result[field] = items.join('\n')
+    }
+  }
 
   function flush() {
     switch (section.kind) {
       case 'profile': {
-        const text = nonEmpty(buffer).join(' ')
-        if (text) result.profileParagraph = text
+        const paragraph = buffer.filter(Boolean).join(' ')
+        if (paragraph) {
+          if (result.profileParagraph !== undefined) {
+            result.warnings.push('[PROFILE] appeared twice — used the last one')
+          }
+          result.profileParagraph = paragraph
+        }
         break
       }
       case 'skills':
-        result.skills = nonEmpty(buffer).map(stripGlyph).filter(Boolean).join('\n')
+        setList('skills', '[SKILLS]')
         break
       case 'tech':
-        result.technicalAbilities = nonEmpty(buffer).map(stripGlyph).filter(Boolean).join('\n')
+        setList('technicalAbilities', '[TECHNICAL ABILITIES]')
         break
-      case 'job': {
-        let summary: string | undefined
-        const bullets: string[] = []
-        for (const line of nonEmpty(buffer)) {
-          const s = line.match(/^summary\s*:\s*(.*)$/i)
-          if (s) summary = s[1]!.trim() || undefined
-          else {
-            const b = stripGlyph(line)
-            if (b) bullets.push(b)
-          }
-        }
-        result.jobs.push({ company: section.company, title: section.title, summary, bullets: bullets.join('\n') })
+      case 'job':
+        result.jobs.push(parseJobBlock(section.company, section.title, buffer))
         break
-      }
       case 'unknown':
         result.warnings.push(`Ignored unknown section [${section.name}]`)
         break
@@ -114,20 +135,45 @@ export function parseResumeImport(text: string): ParsedResumeImport {
       section = header
       continue
     }
-    if (section.kind === 'preamble') {
-      const kv = line.match(/^\s*target[_ ](company|role)\s*:\s*(.*)$/i)
-      if (kv) {
-        const value = kv[2]!.trim()
-        if (kv[1]!.toLowerCase() === 'company') result.targetCompany = value
-        else result.targetRole = value
-      }
+    // TARGET_* lines are honored anywhere, not just at the top.
+    const kv = line.match(TARGET_KV)
+    if (kv) {
+      const value = kv[2]!.trim()
+      if (kv[1]!.toLowerCase() === 'company') result.targetCompany = value
+      else result.targetRole = value
       continue
     }
-    buffer.push(line)
+    if (section.kind === 'preamble') continue
+    if (line) buffer.push(line)
   }
   flush()
 
   return result
+}
+
+/** A job block: optional SUMMARY line, then bullets. When the block uses
+ *  bullet glyphs, a line *without* one is a hard-wrapped continuation of the
+ *  previous bullet (or of the summary) — common when copying from chat. */
+function parseJobBlock(company: string, title: string | undefined, lines: string[]): ImportedJob {
+  const usesGlyphs = lines.some(l => HAS_GLYPH.test(l))
+  let summary: string | undefined
+  const bullets: string[] = []
+
+  for (const line of lines) {
+    const s = line.match(SUMMARY_KV)
+    if (s) {
+      summary = s[1]!.trim() || undefined
+      continue
+    }
+    const isNewBullet = !usesGlyphs || HAS_GLYPH.test(line)
+    const text = stripListGlyph(line)
+    if (!text) continue
+    if (isNewBullet) bullets.push(text)
+    else if (bullets.length > 0) bullets[bullets.length - 1] += ' ' + text
+    else summary = summary ? `${summary} ${text}` : text
+  }
+
+  return { company, title, summary, bullets: bullets.join('\n') }
 }
 
 // ── Job matching ─────────────────────────────────────────────────────────────
@@ -136,6 +182,8 @@ const COMPANY_SUFFIXES = new Set(['inc', 'llc', 'corp', 'co', 'corporation', 'co
 
 export function normalizeName(s: string): string {
   return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // Körber → Korber
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
@@ -160,19 +208,35 @@ export function matchImportedJobs(
   const unmatched: ImportedJob[] = []
   const warnings: string[] = []
 
+  const taken = new Set<string>()
+
   for (const imp of parsed.jobs) {
-    let candidates = jobs.filter(j => namesMatch(j.company, imp.company))
-    if (imp.title) candidates = candidates.filter(j => namesMatch(j.title, imp.title!))
+    const byCompany = jobs.filter(j => namesMatch(j.company, imp.company))
+    let candidates = byCompany
+    if (imp.title) {
+      const byTitle = byCompany.filter(j => namesMatch(j.title, imp.title!))
+      if (byTitle.length > 0) candidates = byTitle
+      else if (byCompany.length > 0) {
+        warnings.push(`No "${imp.company}" job titled "${imp.title}" — matched on company only.`)
+      }
+    }
 
     if (candidates.length === 0) {
       unmatched.push(imp)
       continue
     }
+
+    // Most recent first; skip jobs an earlier block already filled, so two
+    // [JOB: Intralox] blocks land on two different Intralox positions.
     const sorted = [...candidates].sort((a, b) => a.order - b.order)
-    if (sorted.length > 1) {
-      warnings.push(`"${imp.company}" matched ${sorted.length} jobs — used ${sorted[0]!.title}. Add "| Title" to pick a different one.`)
+    const pick = sorted.find(j => !taken.has(j.id)) ?? sorted[0]!
+    if (taken.has(pick.id)) {
+      warnings.push(`"${imp.company}" appears more than once — the later block replaced the earlier one.`)
+    } else if (sorted.length > 1 && !imp.title) {
+      warnings.push(`"${imp.company}" matched ${sorted.length} jobs — used ${pick.title}. Add "| Title" to pick a different one.`)
     }
-    matched.push({ jobId: sorted[0]!.id, summary: imp.summary, bullets: imp.bullets })
+    taken.add(pick.id)
+    matched.push({ jobId: pick.id, summary: imp.summary, bullets: imp.bullets })
   }
 
   return { matched, unmatched, warnings }

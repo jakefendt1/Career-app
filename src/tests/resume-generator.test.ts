@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateResume, getResumeFilename } from '../lib/resume-generator'
+import { generateResume, getResumeFilename, formatDateRange, preflightResume } from '../lib/resume-generator'
 import type { Profile, ResumeJob, ResumeDraft } from '../lib/types'
 
 const PROFILE: Profile = {
@@ -86,5 +86,45 @@ describe('getResumeFilename', () => {
     const emptyProfile = { ...PROFILE, name: '' }
     const filename = getResumeFilename(emptyProfile, DRAFT)
     expect(filename).toContain('.docx')
+  })
+})
+
+describe('formatDateRange', () => {
+  it('joins both ends, or shows whichever exists', () => {
+    expect(formatDateRange('2019', '2022')).toBe('2019 – 2022')
+    expect(formatDateRange('2022', '')).toBe('2022')
+    expect(formatDateRange('', 'Present')).toBe('Present')
+    expect(formatDateRange('', '')).toBe('')
+  })
+})
+
+describe('preflightResume', () => {
+  it('passes a complete draft cleanly', () => {
+    expect(preflightResume(PROFILE, JOBS, DRAFT)).toEqual({ errors: [], warnings: [] })
+  })
+
+  it('blocks an empty draft', () => {
+    const empty: ResumeDraft = { ...DRAFT, profileParagraph: '', jobContent: {}, skills: '', technicalAbilities: '' }
+    expect(preflightResume(PROFILE, JOBS, empty).errors).toHaveLength(1)
+  })
+
+  it('warns about a missing name and content for jobs no longer in work history', () => {
+    const draft: ResumeDraft = { ...DRAFT, jobContent: { ...DRAFT.jobContent, gone: { summary: '', bullets: 'Old bullet' } } }
+    const { errors, warnings } = preflightResume({ ...PROFILE, name: '' }, JOBS, draft)
+    expect(errors).toEqual([])
+    expect(warnings.some(w => w.includes('YOUR NAME'))).toBe(true)
+    expect(warnings.some(w => w.includes('no longer in your work history'))).toBe(true)
+  })
+})
+
+describe('generateResume — resilience', () => {
+  it('still produces a resume when the photo data is corrupt', async () => {
+    const blob = await generateResume({ ...PROFILE, photoDataUrl: 'data:image/jpeg;base64,@@@not-base64@@@' }, JOBS, DRAFT)
+    expect(blob.size).toBeGreaterThan(1000)
+  })
+
+  it('handles a draft with only skills', async () => {
+    const draft: ResumeDraft = { ...DRAFT, profileParagraph: '', jobContent: {}, technicalAbilities: '' }
+    await expect(generateResume(PROFILE, JOBS, draft)).resolves.toBeInstanceOf(Blob)
   })
 })

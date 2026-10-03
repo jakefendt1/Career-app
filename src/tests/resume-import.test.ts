@@ -190,3 +190,78 @@ describe('buildImportPatch', () => {
     expect(overwritesExisting).toBe(true)
   })
 })
+
+describe('parseResumeImport — forgiving input', () => {
+  it('re-joins bullets that a chat window hard-wrapped onto two lines', () => {
+    const p = parseResumeImport(`[JOB: Intralox]
+SUMMARY: Carry a direct quota for a $7M+ territory
+across six states.
+- Grew territory revenue 30%+ in one year by walking lines
+with operations and engineering.
+- Closed multiple $250K+ capital deals.`)
+    expect(p.jobs[0]!.summary).toBe('Carry a direct quota for a $7M+ territory across six states.')
+    expect(p.jobs[0]!.bullets).toBe('Grew territory revenue 30%+ in one year by walking lines with operations and engineering.\nClosed multiple $250K+ capital deals.')
+  })
+
+  it('treats every line as a bullet when the block uses no glyphs', () => {
+    const p = parseResumeImport('[JOB: Signicast]\nDesigned AS/RS\nLed robotic cells')
+    expect(p.jobs[0]!.bullets).toBe('Designed AS/RS\nLed robotic cells')
+  })
+
+  it('accepts Markdown-style headers', () => {
+    const p = parseResumeImport('## Profile\nHi there.\n### [JOB: MWES]\n- x\n**Skills:**\nNegotiation\n## Technical Skills\nCAD')
+    expect(p.profileParagraph).toBe('Hi there.')
+    expect(p.jobs[0]!.company).toBe('MWES')
+    expect(p.skills).toBe('Negotiation')
+    expect(p.technicalAbilities).toBe('CAD')
+  })
+
+  it('does not mistake an ordinary line for a header', () => {
+    const p = parseResumeImport('[JOB: MWES]\n- Skills in negotiation\n- Job: closing deals')
+    expect(p.jobs[0]!.bullets).toBe('Skills in negotiation\nJob: closing deals')
+  })
+
+  it('splits a one-line comma skill list and combines duplicate sections', () => {
+    const p = parseResumeImport('[SKILLS]\nNegotiation, Forecasting, CRM\n[SKILLS]\nForecasting\nTerritory Planning')
+    expect(p.skills).toBe('Negotiation\nForecasting\nCRM\nTerritory Planning')
+    expect(p.warnings.some(w => w.includes('twice'))).toBe(true)
+  })
+
+  it('honors TARGET lines placed after a section header', () => {
+    const p = parseResumeImport('[PROFILE]\nTARGET_COMPANY: Acme\nHello.')
+    expect(p.targetCompany).toBe('Acme')
+    expect(p.profileParagraph).toBe('Hello.')
+  })
+
+  it('warns about an unexpected format version', () => {
+    const p = parseResumeImport('<<<RESUME_IMPORT v2>>>\n[PROFILE]\nHi.\n<<<END>>>')
+    expect(p.profileParagraph).toBe('Hi.')
+    expect(p.warnings[0]).toContain('v2')
+  })
+
+  it('returns nothing useful (but does not throw) for unrelated text', () => {
+    const p = parseResumeImport('Thanks! Let me know if you need anything else.')
+    expect(p.jobs).toEqual([])
+    expect(p.profileParagraph).toBeUndefined()
+  })
+})
+
+describe('matchImportedJobs — edge cases', () => {
+  it('matches across accents (Körber vs Korber)', () => {
+    const jobs = [job('k', 'Korber Supply Chain', 'AE', 0)]
+    const { matched } = matchImportedJobs(parseResumeImport('[JOB: Körber]\n- x'), jobs)
+    expect(matched[0]!.jobId).toBe('k')
+  })
+
+  it('falls back to the company when the title matches nothing', () => {
+    const { matched, warnings } = matchImportedJobs(parseResumeImport('[JOB: MWES | Wrong Title]\n- x'), JOBS)
+    expect(matched[0]!.jobId).toBe('j2')
+    expect(warnings[0]).toContain('company only')
+  })
+
+  it('sends two blocks for the same company to two different positions', () => {
+    const jobs = [...JOBS, job('j5', 'Intralox', 'Regional Sales Manager', 5)]
+    const { matched } = matchImportedJobs(parseResumeImport('[JOB: Intralox]\n- a\n[JOB: Intralox]\n- b'), jobs)
+    expect(matched.map(m => m.jobId)).toEqual(['j1', 'j5'])
+  })
+})

@@ -10,6 +10,10 @@ type Props = {
   onEditJob: () => void
 }
 
+// Uncontrolled on purpose: the parent saves on a debounce, and a controlled
+// textarea bound to the stored value would snap back between keystrokes and
+// drop characters. The parent remounts this (via key) when the draft is
+// rewritten from outside, e.g. after Paste Import.
 export function ResumeJobSection({ job, content, onChange, onEditJob }: Props) {
   const summary = content?.summary ?? ''
   const bullets = content?.bullets ?? ''
@@ -19,7 +23,7 @@ export function ResumeJobSection({ job, content, onChange, onEditJob }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
         <div>
           <p className="font-semibold text-sm text-slate-800">{job.title}</p>
-          <p className="text-xs text-slate-500">{job.company} · {job.location} · {job.startDate}–{job.endDate}</p>
+          <p className="text-xs text-slate-500">{[job.company, job.location, [job.startDate, job.endDate].filter(Boolean).join('–')].filter(Boolean).join(' · ')}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={onEditJob}>
           <ExternalLink size={12} /> Edit job details
@@ -28,14 +32,14 @@ export function ResumeJobSection({ job, content, onChange, onEditJob }: Props) {
       <div className="p-4 space-y-3">
         <Textarea
           label="Role Summary (italic line, optional)"
-          value={summary}
+          defaultValue={summary}
           onChange={e => onChange({ summary: e.target.value })}
           placeholder="Own revenue growth for a $7M+ B2B territory..."
           className="min-h-[60px]"
         />
         <Textarea
           label="Bullets (one per line, no dashes needed)"
-          value={bullets}
+          defaultValue={bullets}
           onChange={e => onChange({ bullets: e.target.value })}
           placeholder={`Grew territory revenue 23% YoY\nLanded 4 net-new accounts in Q3\n...`}
           className="min-h-[120px] font-mono text-xs"
